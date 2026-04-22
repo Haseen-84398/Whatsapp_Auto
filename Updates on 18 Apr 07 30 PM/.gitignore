@@ -1,0 +1,14 @@
+.env
+*.json
+!package.json
+!package-lock.json
+credentials/
+secrets/
+*.key
+*.pem
+wa_session_data/
+node_modules/
+downloads/
+ssc_documents/
+*.log
+

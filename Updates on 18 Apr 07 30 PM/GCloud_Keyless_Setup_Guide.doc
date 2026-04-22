@@ -1,0 +1,125 @@
+
+<html xmlns:o='urn:schemas-microsoft-com:office:office'
+      xmlns:w='urn:schemas-microsoft-com:office:word'
+      xmlns='http://www.w3.org/TR/REC-html40'>
+<head>
+  <meta charset='utf-8'>
+  <title>GCloud Keyless Setup Guide</title>
+  <!--[if gte mso 9]>
+  <xml>
+    <w:WordDocument>
+      <w:View>Print</w:View>
+      <w:Zoom>100</w:Zoom>
+    </w:WordDocument>
+  </xml>
+  <![endif]-->
+  <style>
+    body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; margin: 2cm; color: #000; }
+    h1 { font-size: 18pt; color: #1a56a0; border-bottom: 2px solid #1a56a0; padding-bottom: 6px; }
+    h2 { font-size: 14pt; color: #1a56a0; margin-top: 20px; }
+    h3 { font-size: 12pt; color: #2e6da4; margin-top: 14px; }
+    .code { background: #f4f4f4; border: 1px solid #ccc; padding: 8px 12px; font-family: Courier New, monospace; font-size: 10pt; margin: 8px 0; border-left: 4px solid #1a56a0; }
+    .note { background: #fff8e1; border: 1px solid #f0c040; padding: 8px 12px; margin: 8px 0; border-left: 4px solid #f0c040; }
+    .success { background: #e8f5e9; border: 1px solid #66bb6a; padding: 8px 12px; margin: 8px 0; border-left: 4px solid #66bb6a; }
+    table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+    th { background: #1a56a0; color: white; padding: 8px 12px; text-align: left; }
+    td { border: 1px solid #ccc; padding: 8px 12px; }
+    tr:nth-child(even) { background: #f4f8ff; }
+    .step-num { display: inline-block; background: #1a56a0; color: white; border-radius: 50%; width: 22px; height: 22px; text-align: center; line-height: 22px; font-weight: bold; margin-right: 6px; font-size: 12pt; }
+    p { line-height: 1.6; }
+    ul { line-height: 1.8; }
+  </style>
+</head>
+<body>
+
+<h1>Google Cloud — Keyless Authentication Setup Guide</h1>
+<p><strong>Project:</strong> whatsapp-493623 &nbsp;&nbsp; <strong>Service Account:</strong> whatsappboot &nbsp;&nbsp; <strong>Date:</strong> April 2026</p>
+<p><strong>Purpose:</strong> Yahan di gayi steps follow karke aap bina JSON key file ke apne local machine se <code>whatsappboot</code> service account ko use kar sakte hain. Ye method Service Account Impersonation with Application Default Credentials (ADC) use karta hai.</p>
+
+<div class="success">
+<strong>✅ Google Cloud Console me kya ho chuka hai:</strong><br>
+<code>ceo@yhnservices.com</code> ko <strong>Service Account Token Creator</strong> role diya ja chuka hai <code>whatsappboot</code> service account par. Ye ek baar karna tha — ho gaya.
+</div>
+
+<h2><span class="step-num">1</span> Google Cloud SDK (gcloud) Install Karo</h2>
+<p>Agar gcloud pehle se install nahi hai to niche se install karo:</p>
+<ul>
+  <li><strong>Windows:</strong> <a href="https://cloud.google.com/sdk/docs/install">https://cloud.google.com/sdk/docs/install</a> se installer download karo</li>
+  <li><strong>Mac:</strong> <code>brew install google-cloud-sdk</code></li>
+  <li><strong>Linux (Ubuntu/Debian):</strong></li>
+</ul>
+<div class="code">sudo apt-get install google-cloud-cli</div>
+<p>Install hone ke baad terminal me check karo:</p>
+<div class="code">gcloud --version</div>
+
+<h2><span class="step-num">2</span> Google Account Se Login Karo</h2>
+<p>Terminal / PowerShell / Command Prompt me ye command run karo:</p>
+<div class="code">gcloud auth login</div>
+<p>Browser automatically khulega. <strong>ceo@yhnservices.com</strong> se login karo aur permission allow karo.</p>
+
+<h2><span class="step-num">3</span> Project Set Karo</h2>
+<div class="code">gcloud config set project whatsapp-493623</div>
+
+<h2><span class="step-num">4</span> Application Default Credentials (ADC) Set Karo — WITH Impersonation</h2>
+<p>Ye sabse important command hai. Ye command tumhare local machine ke credentials ko <code>whatsappboot</code> service account ke through route karti hai — bina kisi JSON key file ke:</p>
+<div class="code">gcloud auth application-default login --impersonate-service-account=whatsappboot@whatsapp-493623.iam.gserviceaccount.com</div>
+<p>Command successful hone par terminal me kuch aisa dikhega:</p>
+<div class="note">
+Credentials saved to file: [C:UsersYourNameAppDataRoaminggcloudapplication_default_credentials.json]<br>
+<em>(Ye file automatically manage hoti hai — manually open karne ki zarurat nahi)</em>
+</div>
+
+<h2><span class="step-num">5</span> Node.js Setup</h2>
+<h3>Package Install Karo</h3>
+<p>Apne project folder me ye command run karo:</p>
+<div class="code">npm install google-auth-library</div>
+
+<h3>Node.js Code — Test Authentication</h3>
+<p>Ek test file banao <code>testAuth.js</code> naam se:</p>
+<div class="code">const { GoogleAuth } = require('google-auth-library');<br><br>
+async function testAuth() {<br>
+&nbsp;&nbsp;const auth = new GoogleAuth({<br>
+&nbsp;&nbsp;&nbsp;&nbsp;scopes: ['https://www.googleapis.com/auth/cloud-platform']<br>
+&nbsp;&nbsp;});<br><br>
+&nbsp;&nbsp;const client = await auth.getClient();<br>
+&nbsp;&nbsp;const token = await client.getAccessToken();<br>
+&nbsp;&nbsp;console.log('✅ Authentication successful!');<br>
+&nbsp;&nbsp;console.log('Access Token:', token.token.substring(0, 30) + '...');<br>
+}<br><br>
+testAuth().catch(console.error);</div>
+
+<p>Run karo:</p>
+<div class="code">node testAuth.js</div>
+
+<h3>Apne WhatsApp Bot Me Use Karo</h3>
+<p>Agar tum Google APIs (Firestore, Storage, Vertex AI, etc.) use kar rahe ho, to ADC automatically pick ho jaata hai. Example:</p>
+<div class="code">const { GoogleAuth } = require('google-auth-library');<br><br>
+const auth = new GoogleAuth({<br>
+&nbsp;&nbsp;scopes: ['https://www.googleapis.com/auth/cloud-platform']<br>
+});<br><br>
+// Ye line kaafi hai — baki sab automatically handle hoga<br>
+const client = await auth.getClient();</div>
+
+<h2>Summary Table</h2>
+<table>
+  <tr><th>Step</th><th>Action</th><th>Status</th></tr>
+  <tr><td>Console Setup</td><td>ceo@yhnservices.com ko Token Creator role diya</td><td>✅ Ho chuka hai</td></tr>
+  <tr><td>Step 1</td><td>gcloud SDK install karo</td><td>⬜ Tumhari machine par</td></tr>
+  <tr><td>Step 2</td><td>gcloud auth login</td><td>⬜ Terminal me run karo</td></tr>
+  <tr><td>Step 3</td><td>gcloud config set project whatsapp-493623</td><td>⬜ Terminal me run karo</td></tr>
+  <tr><td>Step 4</td><td>gcloud auth application-default login --impersonate-service-account=...</td><td>⬜ Terminal me run karo</td></tr>
+  <tr><td>Step 5</td><td>npm install google-auth-library + code update</td><td>⬜ Node.js project me</td></tr>
+</table>
+
+<div class="note">
+<strong>⚠️ Important Notes:</strong><br>
+• JSON key file ki zarurat nahi — koi file share mat karna, koi secret store mat karna.<br>
+• Agar machine change karo to Step 2, 3, 4 dobara run karni hongi.<br>
+• Token automatically refresh hota rehta hai — expire hone ki chinta nahi.<br>
+• Agar koi error aaye to <code>gcloud auth application-default print-access-token</code> se debug karo.
+</div>
+
+<p style="margin-top:30px; color:#888; font-size:9pt;">Generated for: Whatsapp Project (whatsapp-493623) | Service Account: whatsappboot@whatsapp-493623.iam.gserviceaccount.com</p>
+
+</body>
+</html>

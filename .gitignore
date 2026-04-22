@@ -1,0 +1,19 @@
+# Dependency folders
+node_modules/
+
+# WhatsApp Session data (VERY IMPORTANT: Never share this)
+wa_session_data/
+
+# Local data and downloads
+downloads/
+attendance_tracking.json
+*.log
+
+# Credentials and secrets
+*.json
+!package.json
+!package-lock.json
+
+# OS files
+.DS_Store
+Thumbs.db
