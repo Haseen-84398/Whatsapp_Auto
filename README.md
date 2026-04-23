@@ -4,60 +4,64 @@ A complete, AI-powered WhatsApp Bot designed to automate group creation, documen
 
 ---
 
+## 📜 Update History & Migration (Read this first!)
+
+| Date | Status | Change Description |
+| :--- | :--- | :--- |
+| **23-Apr-2026** | **Current** | **Migration to Apps Script Bridge**: Removed Direct API/OAuth connection. Switched to a stable Apps Script bridge to bypass Google Cloud's `invalid_grant` and "App Blocked" issues. |
+| **Early 2026** | Legacy | **Direct Google Sheets API**: Used Service Accounts and OAuth2. (Now retired due to frequent token expiration and security policy restrictions). |
+
+### 🚀 Why the switch to Apps Script?
+Previously, the bot relied on Google's Direct API which required periodic browser logins and complex JSON keys. These often failed due to "Security Policies" or "Expired Tokens". 
+The **new method** uses a small script hosted inside your Google Sheet. It's faster, requires **zero manual login**, and never expires.
+
+---
+
 ## 🌟 Key Features
 
 1. **Auto Group Creation (Google Sheets)**
     - Automatically reads pending assessments from a Google Sheet every 5 minutes.
-    - **New Connectivity**: Uses a Google Apps Script Bridge for 100% stable connection (No more OAuth login or Token expiry issues).
+    - **Mode**: Stable Apps Script Bridge.
     - Creates WhatsApp groups and adds necessary members and admins.
-    - Automatically distributes SSC-specific guidelines and PDF documents upon group creation.
+    - Automatically distributes SSC-specific guidelines upon group creation.
 
 2. **Smart Member Management (NLP Powered)**
     - **Add**: Type `!add 9876543210` or naturally say `"isko add kardo 9876543210"`.
     - **Remove**: Type `!remove @User` or naturally say `"remove 9876543210"`.
-    - **Complete Exit**: Type `complete exit` followed by `confirm exit` to remove all members and delete the group.
 
 3. **AI Vision & Photo Verification (Gemini 2.0 Flash)**
-    - Analyzes photos uploaded to the group to determine if they are Aadhaar Cards, Group Photos, Theory Photos, etc.
-    - Automatically checks photo quality. If a photo is blurry or too dark, the bot sends a warning: `⚠️ Photo Quality Issue`.
+    - Analyzes photos uploaded to the group to determine if they are Aadhaar Cards, Group Photos, etc.
+    - Automatically checks photo quality (Blur/Darkness detection).
 
 4. **Evidence Tracking System**
     - Tracks incoming evidence categories for each group.
     - Command `!evidence` shows exactly what is collected (✅) and what is missing (❌).
 
-5. **Daily Analytics Reporting**
-    - Automatically sends a daily report at 10 PM IST to the bot's own number.
-    - Command `!report` instantly shows groups created, media saved, and photos verified today.
-
-6. **Custom Media Categorization**
-    - Command `!mode aadhar` forces the bot to save all incoming photos as Aadhaar.
-    - Command `!document Attendance` saves all incoming PDFs with custom prefixes.
-
 ---
 
 ## 🛠️ Setup & Deployment
 
-### Google Sheets Integration (The "Stable" Way)
-The bot now uses a **Google Apps Script Web App** to talk to Google Sheets. This avoids all the complex Google Cloud permission issues.
+### Google Sheets Integration
+The bot uses the `SCRIPT_URL` defined in `src/sheets.js` to talk to Google Sheets. 
 
-1.  **Apps Script Setup**: The code for the Apps Script is in the Google Sheet (Extensions > Apps Script).
-2.  **Connectivity**: The bot uses the `SCRIPT_URL` defined in `src/sheets.js` to fetch and update data.
-3.  **No JSON Required**: You no longer need `service-account.json` in the root folder.
+1.  **Apps Script Code**: The code is already pasted in your Google Sheet (Extensions > Apps Script).
+2.  **No JSON Required**: You **no longer need** `service-account.json`.
+3.  **To Update URL**: If you ever create a new deployment, just replace the URL in `src/sheets.js`.
 
-### Installation Steps
-1.  **Node.js**: Install Node.js (v18+).
-2.  **Dependencies**: Run `install_dependencies.bat`.
-3.  **Run**: Run `RunBot.bat` and scan the QR code.
+### How to Auto-Update (on other systems)
+If you are moving this to a different computer:
+1.  Run **`UpdateBot.bat`**. 
+2.  It will automatically pull the latest Apps Script code from GitHub.
+3.  Run **`RunBot.bat`** and you're done!
 
 ---
 
 ## 📁 Project Structure
 
 -   `src/index.js`: Main bot logic and WhatsApp connection.
--   `src/sheets.js`: **[UPDATED]** Handles all Google Sheets communication via Apps Script URL.
--   `src/ssc_documents/`: Folder for PDF guidelines.
--   `tests/`: **[NEW]** Contains all testing scripts (e.g., `test_sheets.js` to verify connection).
--   `downloads/`: Media and documents saved from WhatsApp groups.
+-   `src/sheets.js`: Updated bridge logic for Google Sheets.
+-   `tests/`: Contains `test_sheets.js` to verify connection anytime.
+-   `downloads/`: Organized media and documents.
 
 ---
 
@@ -67,14 +71,11 @@ The bot now uses a **Google Apps Script Web App** to talk to Google Sheets. This
 | :------------------------------ | :------------------------------------------ | :------------ |
 | **`!add [number]`**             | Adds a member and sends guidelines.         | In Group      |
 | **`!remove [number]`**          | Removes a member.                           | In Group      |
-| **`complete exit`**             | Triggers group deletion warning.            | In Group      |
-| **`confirm exit`**              | Removes everyone and leaves group.          | In Group      |
 | **`!evidence`**                 | Shows missing & collected photos.           | In Group      |
 | **`!report`**                   | Shows today's bot statistics.               | Anywhere      |
 | **`!creategroup Name\|Number`** | Manually creates a group.                   | Anywhere      |
 | **`!mode [category]`**          | Forces media to save under a specific name. | In Group      |
-| **`!document [name]`**          | Forces PDFs to save under a specific name.  | In Group      |
 
 ---
 
-_Updated: 23-Apr-2026 | Connection Mode: Apps Script Bridge_
+_Project Maintenance by: Cee Vision Automation Team_
