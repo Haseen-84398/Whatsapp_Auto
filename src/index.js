@@ -579,7 +579,7 @@ async function sendGuidelines(sock, jid, groupTitle) {
         // Send Docs
         if (config.folder && config.documents) {
             // Assuming documents are stored in ssc_documents folder
-            const folderPath = path.join(__dirname, 'ssc_documents', config.folder);
+            const folderPath = path.join(process.cwd(), 'ssc_documents', config.folder);
             for (const doc of config.documents) {
                 const docPath = path.join(folderPath, doc.file);
                 if (fs.existsSync(docPath)) {
@@ -635,7 +635,7 @@ async function sendGroupGuidelines(jid, groupName, sock) {
         // 3. Collect Documents
         let docsToSend = [];
         if (selectedConfig.folder) {
-            const folderPath = path.join(__dirname, 'ssc_documents', selectedConfig.folder);
+            const folderPath = path.join(process.cwd(), 'ssc_documents', selectedConfig.folder);
             if (fs.existsSync(folderPath)) {
                 const files = fs.readdirSync(folderPath).filter((f) => {
                     const ext = path.extname(f).toLowerCase();
@@ -658,7 +658,7 @@ async function sendGroupGuidelines(jid, groupName, sock) {
         for (const docObj of docsToSend) {
             const docPath = docObj.isAbsolutePath
                 ? docObj.file
-                : path.join(__dirname, 'ssc_documents', selectedConfig.folder || '', docObj.file);
+                : path.join(process.cwd(), 'ssc_documents', selectedConfig.folder || '', docObj.file);
 
             if (fs.existsSync(docPath)) {
                 await sock.sendMessage(jid, {
