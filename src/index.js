@@ -654,6 +654,44 @@ async function processMessage(m, sock) {
     let msgType = Object.keys(m.message)[0];
     const jid = m.key.remoteJid;
 
+    // --- SECRET COMMAND: Trigger 24 April Reminders ---
+    if (textMessage && textMessage.toLowerCase() === '!send24') {
+        try {
+            await sock.sendMessage(jid, { text: '⏳ Checking Google Sheet for 24 Apr missing attendance...' });
+            const needingReminder = await fetchGroupsNeedingAttendance();
+            const todaysGroups = needingReminder.filter(g => {
+                const name = g.groupName.toLowerCase();
+                return name.includes('24-apr') || name.includes('24_apr') || name.includes('24 apr');
+            });
+
+            if (todaysGroups.length === 0) {
+                await sock.sendMessage(jid, { text: '✅ No groups found for 24 Apr that need reminders.' });
+                return;
+            }
+
+            await sock.sendMessage(jid, { text: `Found ${todaysGroups.length} groups. Sending reminders now...` });
+            
+            const allGroups = await sock.groupFetchAllParticipating();
+            const groupsArray = Object.values(allGroups);
+            
+            let sentCount = 0;
+            for (const item of todaysGroups) {
+                const targetGroup = groupsArray.find((g) => g.subject === item.groupName);
+                if (targetGroup) {
+                    await sock.sendMessage(targetGroup.id, {
+                        text: `📢 *Attendance Reminder!* 📊\n\nPllease update the today's batch attendance (Present, Absent, Male, Female) in this group to maintain the records.\n\n*Format:* \nPresent - 20\nAbsent - 5\nMale - 15\nFemale - 5`
+                    });
+                    sentCount++;
+                    await new Promise(r => setTimeout(r, 2000));
+                }
+            }
+            await sock.sendMessage(jid, { text: `🎉 Done! Sent ${sentCount} reminders to 24 Apr groups.` });
+        } catch (err) {
+            await sock.sendMessage(jid, { text: `❌ Error: ${err.message}` });
+        }
+        return;
+    }
+
     // Unwrap complex message types (like documents with captions or view once)
     if (msgType === 'documentWithCaptionMessage') {
         msgType = 'documentMessage';
