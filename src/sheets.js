@@ -239,28 +239,51 @@ async function updateSheetAttendance(batchId, attendance) {
 
     if (rowIndex === -1) throw new Error(`Batch ID ${batchId} nahi mila.`);
 
-    const p =
+    let p =
         attendance.present !== undefined
             ? parseInt(attendance.present)
             : parseInt(rows[rowIndex - 1][idxPresent] || '0');
-    const a =
+    let a =
         attendance.absent !== undefined ? parseInt(attendance.absent) : parseInt(rows[rowIndex - 1][idxAbsent] || '0');
-    const m = attendance.male !== undefined ? parseInt(attendance.male) : parseInt(rows[rowIndex - 1][idxMale] || '0');
-    const f =
+    let m = attendance.male !== undefined ? parseInt(attendance.male) : parseInt(rows[rowIndex - 1][idxMale] || '0');
+    let f =
         attendance.female !== undefined ? parseInt(attendance.female) : parseInt(rows[rowIndex - 1][idxFemale] || '0');
+
+    // Smart Adjustments
+    if (totalCandidates > 0) {
+        // If present is provided but absent is missing, calculate absent
+        if (attendance.present !== undefined && attendance.absent === undefined) {
+            a = totalCandidates - p;
+        }
+        // If absent is provided but present is missing, calculate present
+        if (attendance.absent !== undefined && attendance.present === undefined) {
+            p = totalCandidates - a;
+        }
+    }
+
+    // Adjust Male/Female based on Present
+    if (attendance.female !== undefined && attendance.male === undefined) {
+        m = p - f;
+    }
+    if (attendance.male !== undefined && attendance.female === undefined) {
+        f = p - m;
+    }
+
+    // Prevent negative numbers
+    if (a < 0) a = 0;
+    if (p < 0) p = 0;
+    if (m < 0) m = 0;
+    if (f < 0) f = 0;
 
     if (p + a > totalCandidates && totalCandidates > 0) {
         throw new Error(`Total candidates (${totalCandidates}) se zyada entry nahi ho sakti.`);
     }
 
-    if (attendance.present !== undefined)
-        await updateSheetValue(`'${SHEET_NAME}'!${indexToColumnLetter(idxPresent)}${rowIndex}`, p);
-    if (attendance.absent !== undefined)
-        await updateSheetValue(`'${SHEET_NAME}'!${indexToColumnLetter(idxAbsent)}${rowIndex}`, a);
-    if (attendance.male !== undefined && idxMale !== -1)
-        await updateSheetValue(`'${SHEET_NAME}'!${indexToColumnLetter(idxMale)}${rowIndex}`, m);
-    if (attendance.female !== undefined && idxFemale !== -1)
-        await updateSheetValue(`'${SHEET_NAME}'!${indexToColumnLetter(idxFemale)}${rowIndex}`, f);
+    // Always update sheet with the final calculated values
+    await updateSheetValue(`'${SHEET_NAME}'!${indexToColumnLetter(idxPresent)}${rowIndex}`, p);
+    await updateSheetValue(`'${SHEET_NAME}'!${indexToColumnLetter(idxAbsent)}${rowIndex}`, a);
+    if (idxMale !== -1) await updateSheetValue(`'${SHEET_NAME}'!${indexToColumnLetter(idxMale)}${rowIndex}`, m);
+    if (idxFemale !== -1) await updateSheetValue(`'${SHEET_NAME}'!${indexToColumnLetter(idxFemale)}${rowIndex}`, f);
 
     return { success: true, total: totalCandidates, present: p, absent: a, male: m, female: f };
 }
