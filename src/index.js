@@ -1402,11 +1402,10 @@ async function processMessage(m, sock) {
 
     // --- COMMAND: COMPLETE EXIT (Step 1) ---
     if (textMessage && (lowerText === 'complete exit' || lowerText === '!complete exit')) {
-        const isAdmin = [
-            '918006685100@s.whatsapp.net',
-            '918006133100@s.whatsapp.net',
-            '918448758878@s.whatsapp.net'
-        ].includes(m.key.participant || jid);
+        const adminNumbers = ['918006685100', '918006133100', '918448758878'];
+        const sender = m.key.participant || jid;
+        const isAdmin = adminNumbers.some(num => sender.includes(num));
+        
         if (!isAdmin) {
             console.log(`⚠️ Unauthorized exit attempt by ${m.key.participant || jid}`);
             return;
