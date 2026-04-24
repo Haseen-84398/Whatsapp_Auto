@@ -1,6 +1,7 @@
+require('dotenv').config({ path: './.env' });
 const https = require('https');
 
-const OPENROUTER_API_KEY = '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';
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 
 const data = JSON.stringify({
     model: 'google/gemini-2.0-flash-001',

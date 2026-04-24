@@ -1,3 +1,4 @@
+require('dotenv').config();
 const {
     default: makeWASocket,
     useMultiFileAuthState,
@@ -12,9 +13,8 @@ const path = require('path');
 const qrcode = require('qrcode-terminal');
 const { Boom } = require('@hapi/boom');
 const mime = require('mime-types');
-const { pipeline } = require('stream/promises');
-const { exec } = require('child_process');
 const https = require('https');
+// const { GoogleGenerativeAI } = require('@google/generative-ai'); // Removed Gemini
 const {
     fetchPendingGroups,
     fetchGroupsNeedingAttendance,
@@ -24,62 +24,106 @@ const {
     updateSheetAttendance
 } = require('./sheets');
 
-// === OPENROUTER AI CONFIGURATION ===
-const OPENROUTER_API_KEY = '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';
-const AI_MODEL = 'google/gemini-2.0-flash-001';
+// === TIMER & STATE MANAGEMENT ===
+const activeTimers = {
+    autoSync: null,
+    attendanceReminder: null,
+    dailyReport: null,
+    reconnect: null
+};
 
-// OpenRouter API call function
+function clearAllTimers() {
+    if (activeTimers.autoSync) clearInterval(activeTimers.autoSync);
+    if (activeTimers.attendanceReminder) clearTimeout(activeTimers.attendanceReminder);
+    if (activeTimers.dailyReport) clearTimeout(activeTimers.dailyReport);
+    if (activeTimers.reconnect) clearTimeout(activeTimers.reconnect);
+    
+    activeTimers.autoSync = null;
+    activeTimers.attendanceReminder = null;
+    activeTimers.dailyReport = null;
+    activeTimers.reconnect = null;
+}
+
+// === GROQ AI CONFIGURATION ===
+const GROQ_API_KEY = process.env.GROQ_API_KEY;
+const AI_MODEL = process.env.AI_MODEL || 'llama-3.3-70b-versatile';
+const KNOWLEDGE_BASE_PATH = path.join(__dirname, 'knowledge_base.json');
+
+// Admin numbers — bot will NOT reply to these (they manage the bot)
+const BOT_ADMIN_NUMBERS = [
+    '918006685100@s.whatsapp.net',
+    '918006133100@s.whatsapp.net',
+    '918448758878@s.whatsapp.net',
+    '918006134100@s.whatsapp.net',
+    '916203620962@s.whatsapp.net',
+    '919226816244@s.whatsapp.net'
+];
+
+// Load knowledge base from file (reads fresh every time so edits are instant)
+function loadKnowledgeBase() {
+    try {
+        const raw = fs.readFileSync(KNOWLEDGE_BASE_PATH, 'utf-8');
+        return JSON.parse(raw);
+    } catch (err) {
+        console.error('❌ Knowledge base load error:', err.message);
+        return null;
+    }
+}
+
+// Build system prompt dynamically from knowledge_base.json
+function buildSystemPrompt() {
+    const kb = loadKnowledgeBase();
+    if (!kb) return null;
+
+    let qaSection = '';
+    for (const qa of kb.qa_pairs) {
+        qaSection += `\nQ: ${qa.topic} (triggers: ${qa.triggers.join(', ')})\nA: ${qa.answer}\n`;
+    }
+
+    return `You are '${kb.bot_name}'. You work ONLY for ${kb.company}.
+
+CRITICAL RULES:
+${kb.instructions.map((inst, i) => `${i + 1}. ${inst}`).join('\n')}
+
+If a question is not covered in the knowledge base below, reply EXACTLY:
+"${kb.fallback_reply}"
+
+KNOWLEDGE BASE:
+${qaSection}
+
+LANGUAGE RULE: Always reply in ${kb.language}. Never use markdown formatting (no *, no **, no bullets). Keep responses natural and conversational.`;
+}
+
+// Groq API call function (OpenAI Compatible)
 function callAI(userMessage) {
     return new Promise((resolve, reject) => {
+        const systemPrompt = buildSystemPrompt();
+        if (!systemPrompt) {
+            reject(new Error('Knowledge base not loaded'));
+            return;
+        }
+
         const data = JSON.stringify({
             model: AI_MODEL,
             messages: [
-                {
-                    role: 'system',
-                    content: `You are 'Cee-Vision AI Assistant'. You work ONLY for Cee Vision Technologies Pvt. Ltd.
-
-CRITICAL RULE: You must ONLY use information from the APPROVED ANSWERS below. If a question is not covered below, reply EXACTLY: 'Is sawaal ka jawab dene ke liye main aapko humare operations team se connect karta hoon. Thoda wait karein. 🙏'
-
-NEVER make up answers. NEVER guess. NEVER add your own knowledge.
-
-APPROVED ANSWERS:
-
-Q: First greeting / Hi / Hello / Hey / any greeting
-A: Namaste! 🙏 Cee-Vision AI Assistant mein aapka welcome hai. Kya aapko assessments ya process se related koi help chahiye? 📝 Bataiye, main aaj aapki kaise madad karoon? 🤖 Kya hum aapka naam jaan skty hai?
-
-Q: Address / Courier / Hard copy kahan bhejna hai?
-A: Pls courier hard copy of pending documents: Priya, Cee Vision Technologies Pvt. Ltd., A-173, Sector 43, Noida, Uttar Pradesh - 201303. Mb. 84487 58878
-
-Q: Kya documents chahiye / Document checklist?
-A: Assessment ke baad ye documents collect karke courier karein: 1) VTP/TP Feedback Form 2) Assessor Feedback Form 3) Candidate Feedback Forms 4) Attendance Sheet (TP stamp aur signature ke saath)
-
-Q: Assessment mein kya evidence chahiye / Photos videos?
-A: Assessor ko ye evidence collect karna zaroori hai: 1) Center arrival photo 2) Infrastructure aur tools ke photos 3) Har candidate ki Aadhaar holding photo 4) Theory session ke photos aur 2 min video 5) Practical session ke photos aur 2 min video 6) Viva ke photos aur 2 min video 7) Group photo with all candidates, assessor, trainer 8) Assessor-out photo
-
-Q: Company kya karti hai?
-A: Cee Vision Technologies Pvt. Ltd. ek assessment agency hai jo SCGJ, HCSSC, CSDCI, MESC, GJSCI, aur PM-Vishwakarma jaise SSCs ke skill assessments conduct karti hai.
-
-LANGUAGE RULE: Always reply in Hinglish (Hindi words in English letters). Never use Hindi script (Devanagari). Never use markdown formatting.`
-                },
+                { role: 'system', content: systemPrompt },
                 { role: 'user', content: userMessage }
             ]
         });
 
         const options = {
-            hostname: 'openrouter.ai',
-            path: '/api/v1/chat/completions',
+            hostname: 'api.groq.com',
+            path: '/openai/v1/chat/completions',
             method: 'POST',
             headers: {
-                Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-                'Content-Type': 'application/json',
-                'HTTP-Referer': 'https://ceevision.in',
-                'X-Title': 'CeeVision WhatsApp Bot'
+                'Authorization': `Bearer ${GROQ_API_KEY}`,
+                'Content-Type': 'application/json'
             }
         };
 
         const req = https.request(options, (res) => {
             let body = '';
-            res.on('data', (d) => (body += d));
+            res.on('data', (d) => body += d);
             res.on('end', () => {
                 try {
                     const parsed = JSON.parse(body);
@@ -100,55 +144,14 @@ LANGUAGE RULE: Always reply in Hinglish (Hindi words in English letters). Never 
     });
 }
 
-// === AI VISION FUNCTION: Photo Analysis ===
+// Check if sender is a bot admin (skip AI reply for admins)
+function isBotAdmin(senderJid) {
+    return BOT_ADMIN_NUMBERS.includes(senderJid);
+}
+
+// === AI VISION FUNCTION (Placeholder for Groq - currently limited) ===
 function callAIWithImage(base64Image, prompt, mimeType = 'image/jpeg') {
-    return new Promise((resolve, reject) => {
-        const data = JSON.stringify({
-            model: AI_MODEL,
-            messages: [
-                {
-                    role: 'user',
-                    content: [
-                        { type: 'text', text: prompt },
-                        { type: 'image_url', image_url: { url: `data:${mimeType};base64,${base64Image}` } }
-                    ]
-                }
-            ]
-        });
-
-        const options = {
-            hostname: 'openrouter.ai',
-            path: '/api/v1/chat/completions',
-            method: 'POST',
-            headers: {
-                Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-                'Content-Type': 'application/json',
-                'HTTP-Referer': 'https://ceevision.in',
-                'X-Title': 'CeeVision WhatsApp Bot'
-            }
-        };
-
-        const req = https.request(options, (res) => {
-            let body = '';
-            res.on('data', (d) => (body += d));
-            res.on('end', () => {
-                try {
-                    const parsed = JSON.parse(body);
-                    if (parsed.choices && parsed.choices[0]) {
-                        resolve(parsed.choices[0].message.content);
-                    } else {
-                        reject(new Error('No AI vision response: ' + body));
-                    }
-                } catch (e) {
-                    reject(new Error('Parse error: ' + body));
-                }
-            });
-        });
-
-        req.on('error', reject);
-        req.write(data);
-        req.end();
-    });
+    return Promise.resolve("AI Vision features are currently being updated for Groq.");
 }
 
 // Group names ko baar-baar fetch na karna pade isliye cache
@@ -462,7 +465,7 @@ Approval Policy: Ensure that no candidate is permitted to leave the center witho
 *Regards, Operations Team Cee Vision Technologies*`,
         folder: 'MESC',
         documents: [
-            { file: "Assessor's Feedback Form.pdf", displayName: 'Assessor Feedback Form.pdf' },
+            { file: "Assessor_s Feedback Form.pdf", displayName: 'Assessor Feedback Form.pdf' },
             { file: 'Candidate Feedback Form.pdf', displayName: 'Candidate Feedback Form.pdf' },
             { file: 'MESC VTP Declaration.pdf', displayName: 'MESC VTP Declaration.pdf' },
             {
@@ -474,7 +477,7 @@ Approval Policy: Ensure that no candidate is permitted to leave the center witho
 
     GJSCI: {
         text: `💎 Welcome to the Gems & Jewellery SSC (GJSCI) Batch!\n\nGuidelines:\n1. Precision & respect are key.\n2. Update assignments timely.\n3. Follow admin instructions.`,
-        folder: 'GJSCI',
+        folder: 'CSDCI',
         documents: [
             { file: 'Assessment Plan.pdf', displayName: 'Assessment Plan.pdf' },
             { file: 'Assessor Feedback Form.pdf', displayName: 'Assessor Feedback Form.pdf' },
@@ -548,55 +551,7 @@ A-173, sector 43,
 Noida, Uttar Pradesh – 201303
     Mb. 84487 58878`;
 
-function getGuidelinesForTitle(upperTitle) {
-    let selectedConfig = BATCH_GUIDELINES['default'];
-    if (upperTitle.includes('SCGJ')) selectedConfig = BATCH_GUIDELINES['SCGJ'];
-    else if (upperTitle.includes('HCSSC')) selectedConfig = BATCH_GUIDELINES['HCSSC'];
-    else if (upperTitle.includes('CSDCI')) selectedConfig = BATCH_GUIDELINES['CSDCI'];
-    else if (upperTitle.includes('MESC')) selectedConfig = BATCH_GUIDELINES['MESC'];
-    else if (upperTitle.includes('GJSCI')) selectedConfig = BATCH_GUIDELINES['GJSCI'];
-    return selectedConfig;
-}
-
-async function sendGuidelines(sock, jid, groupTitle) {
-    try {
-        const upperTitle = groupTitle.toUpperCase();
-        let config = getGuidelinesForTitle(upperTitle);
-
-        // PM Vishwakarma logic
-        if (
-            (upperTitle.includes('HCSSC') || upperTitle.includes('GJSCI')) &&
-            (upperTitle.includes('DAY 0') || upperTitle.includes('DAY 6'))
-        ) {
-            // Special rules for Vishwakarma
-            // You can customize this if needed
-        }
-
-        if (config.text) {
-            await sock.sendMessage(jid, { text: config.text + COMPANY_ADDRESS_APPENDIX });
-        }
-
-        // Send Docs
-        if (config.folder && config.documents) {
-            // Assuming documents are stored in ssc_documents folder
-            const folderPath = path.join(process.cwd(), 'ssc_documents', config.folder);
-            for (const doc of config.documents) {
-                const docPath = path.join(folderPath, doc.file);
-                if (fs.existsSync(docPath)) {
-                    await sock.sendMessage(jid, {
-                        document: fs.readFileSync(docPath),
-                        fileName: doc.displayName || doc.file,
-                        mimetype: 'application/pdf'
-                    });
-                    await new Promise((r) => setTimeout(r, 1000));
-                }
-            }
-        }
-        console.log(`📑 [Guidelines] Sent to ${jid}`);
-    } catch (err) {
-        console.error('❌ Error sending guidelines:', err);
-    }
-}
+// Removed duplicate getGuidelinesForTitle and sendGuidelines functions.
 
 // --- REUSABLE FUNCTION: Send Guidelines & Documents ---
 async function sendGroupGuidelines(jid, groupName, sock) {
@@ -755,6 +710,8 @@ async function processMessage(m, sock) {
             // 3. Dono list mila do. Set lagane se agar galti se purana number dubara input hua, toh extra count nahi badhega.
             const members = Array.from(new Set([...defaultTeamMembers, ...newMembers]));
 
+            let selectedConfig = BATCH_GUIDELINES['default']; // Fix: Declare selectedConfig
+            
             // Safety check
             if (!canCreateGroup()) {
                 await sock.sendMessage(jid, {
@@ -810,8 +767,8 @@ async function processMessage(m, sock) {
                     }
                 }
             }
-            // Guidelines bhej do (using central function)
-            await sendGuidelines(sock, group.id, groupTitle);
+            // Send dynamic guidelines and docs
+            await sendGroupGuidelines(group.id, groupTitle, sock);
 
             await sock.sendMessage(jid, {
                 text: `✅ Group "${group.subject}" successfully ban gaya hai!\nNaye group me ${members.length} members add kiye gaye hain aur Guidelines bhi bhej di gayi hain.`
@@ -1009,7 +966,7 @@ async function processMessage(m, sock) {
                 }
                 try {
                     // STEP 1: Lock karo taaki dusre systems duplicate na banayein
-                    await lockGroupAsCreating(group.rowIndex);
+                    await lockGroupAsCreating(group.rowIndex, group.statusColLetter);
 
                     await waitForCooldown();
                     await sock.sendMessage(jid, { text: `⏳ Creating: ${group.groupName}...` });
@@ -1020,7 +977,7 @@ async function processMessage(m, sock) {
 
                     // STEP 3: Success — "Created" mark karo
                     console.log(`✅ Group Created: ${groupInfo.id} - ${group.groupName}`);
-                    await markGroupAsCreated(group.rowIndex);
+                    await markGroupAsCreated(group.rowIndex, group.statusColLetter);
 
                     await sock.sendMessage(groupInfo.id, {
                         text: `✅ *${group.groupName}* group successfully ban gaya hai sheet ke data se!`
@@ -1030,7 +987,7 @@ async function processMessage(m, sock) {
                 } catch (createErr) {
                     // STEP 4: Fail — wapas "Pending" karo taaki dusra system try kare
                     console.error(`❌ Failed to create group ${group.groupName}:`, createErr);
-                    await unlockGroupAsPending(group.rowIndex);
+                    await unlockGroupAsPending(group.rowIndex, group.statusColLetter);
                     await sock.sendMessage(jid, {
                         text: `❌ ${group.groupName} banane mein error aaya. Dusra system try karega.`
                     });
@@ -1152,7 +1109,7 @@ async function processMessage(m, sock) {
 
             // Fetch group metadata for the name
             const groupMetadata = await sock.groupMetadata(jid);
-            await sendGuidelines(sock, jid, groupMetadata.subject);
+            await sendGroupGuidelines(jid, groupMetadata.subject, sock);
         } catch (err) {
             console.error('Error in smart add:', err);
             await sock.sendMessage(jid, { text: `❌ Add karne mein error: ${err.message}` });
@@ -1207,8 +1164,11 @@ async function processMessage(m, sock) {
 
     // --- COMMAND: COMPLETE EXIT (Step 1) ---
     if (textMessage && lowerText === 'complete exit') {
-        const jid = m.key.remoteJid;
-        if (!jid.endsWith('@g.us')) return;
+        const isAdmin = ['918006685100@s.whatsapp.net', '918006133100@s.whatsapp.net', '918448758878@s.whatsapp.net'].includes(m.key.participant || jid);
+        if (!isAdmin) {
+            console.log(`⚠️ Unauthorized exit attempt by ${m.key.participant || jid}`);
+            return;
+        }
         await sock.sendMessage(jid, {
             text: `⚠️ *WARNING!* Aapne 'complete exit' likha hai.\nIska matlab hai ki Bot is group ke sabhi logo ko nikal dega aur khud bhi group leave kar dega.\n\nAgar aap sure hain, toh confirm karne ke liye exactly ye type karein:\n\n*confirm exit*`
         });
@@ -1273,7 +1233,7 @@ async function processMessage(m, sock) {
                 });
             } else {
                 chatModes.delete(jid);
-                await sock.sendMessage(jid, { text: `⏹️ Mode OFF. Ab normal filenames use honge.` });
+                await sock.sendMessage(jid, { text: `⏹️ Mode OFF. Ab normal filenames use hongi.` });
             }
         } else {
             await sock.sendMessage(jid, {
@@ -1309,18 +1269,18 @@ async function processMessage(m, sock) {
         // --- ATTENDANCE LOGGING LOGIC ---
         if (jid.endsWith('@g.us') && textMessage) {
             const lowerText = textMessage.toLowerCase();
-            const hasPresent = lowerText.includes('present');
-            const hasAbsent = lowerText.includes('absent');
-            const hasMale = lowerText.includes('male');
-            const hasFemale = lowerText.includes('female');
+            const hasPresent = /\bpresent\b/.test(lowerText);
+            const hasAbsent = /\babsent\b/.test(lowerText);
+            const hasMale = /\bmale\b/.test(lowerText);
+            const hasFemale = /\bfemale\b/.test(lowerText);
 
             if (hasPresent || hasAbsent || hasMale || hasFemale) {
                 try {
                     // 1. Extract numbers using Regex
-                    const pMatch = lowerText.match(/present\s*[:\-]*\s*(\d+)/);
-                    const aMatch = lowerText.match(/absent\s*[:\-]*\s*(\d+)/);
-                    const mMatch = lowerText.match(/male\s*[:\-]*\s*(\d+)/);
-                    const fMatch = lowerText.match(/female\s*[:\-]*\s*(\d+)/);
+                    const pMatch = lowerText.match(/\bpresent\s*[:\-]*\s*(\d+)/);
+                    const aMatch = lowerText.match(/\babsent\s*[:\-]*\s*(\d+)/);
+                    const mMatch = lowerText.match(/\bmale\s*[:\-]*\s*(\d+)/);
+                    const fMatch = lowerText.match(/\bfemale\s*[:\-]*\s*(\d+)/);
 
                     if (pMatch || aMatch || mMatch || fMatch) {
                         const attendance = {};
@@ -1494,6 +1454,27 @@ async function processMessage(m, sock) {
                 console.log(`📝 [${safeChatName}] Text message saved.`);
                 dailyStats.reset();
                 dailyStats.messagesSaved++;
+
+                // === AI AUTO-REPLY (Groq) ===
+                // Reply to both private chats and group messages
+                // BUT skip: admin messages, bot commands (!), attendance data, and mode replies
+                const senderJid = m.key.participant || jid; // group mein participant, private mein jid
+                const isCommand = textMessage.startsWith('!');
+                const isAttendanceData = /\b(present|absent)\b/.test(textMessage.toLowerCase()) && /\d+/.test(textMessage);
+                const isModeReply = pendingRenames && pendingRenames.has(m.message?.extendedTextMessage?.contextInfo?.stanzaId);
+
+                if (!isCommand && !isAttendanceData && !isModeReply && !isBotAdmin(senderJid)) {
+                    try {
+                        console.log(`🤖 [AI] Processing query from ${senderJid}: "${textMessage}"`);
+                        const aiReply = await callAI(textMessage);
+                        if (aiReply) {
+                            await sock.sendMessage(jid, { text: aiReply }, { quoted: m });
+                            console.log(`✅ [AI] Reply sent to ${jid}`);
+                        }
+                    } catch (aiErr) {
+                        console.error('❌ [AI] Auto-reply error:', aiErr.message);
+                    }
+                }
             }
 
             // --- MEDIA SAVING LOGIC ---
@@ -1719,15 +1700,17 @@ async function startAutomation() {
                     fs.rmSync(sessionPath, { recursive: true, force: true });
                     console.log('🗑️ Old session data deleted successfully.');
                 }
-                // Fresh start for new QR code
+                clearAllTimers();
                 startAutomation();
             } else {
                 // Koi aur error (network issue, etc.) — normal reconnect
                 console.log('🔄 Reconnecting in 5 seconds...');
-                setTimeout(() => startAutomation(), 5000);
+                clearAllTimers();
+                activeTimers.reconnect = setTimeout(() => startAutomation(), 5000);
             }
         } else if (connection === 'open') {
             console.log('✅ WhatsApp Connected Successfully!');
+            clearAllTimers();
 
             // === AUTO SYNC: Har 5 minute mein Google Sheet check karega ===
             async function autoSyncFromSheet() {
@@ -1831,7 +1814,7 @@ async function startAutomation() {
 
             // Pehli baar 10 sec baad check karo, phir har 5 minute mein
             setTimeout(autoSyncFromSheet, 10000);
-            setInterval(autoSyncFromSheet, 5 * 60 * 1000);
+            activeTimers.autoSync = setInterval(autoSyncFromSheet, 5 * 60 * 1000);
             // === FEATURE: Daily Attendance Reminder at 5:30 PM IST ===
             function scheduleAttendanceReminder() {
                 const now = new Date();
@@ -1845,7 +1828,7 @@ async function startAutomation() {
                 const msUntilReminder = target - now;
                 console.log(`⏰ [Reminder] Scheduled in ${Math.round(msUntilReminder / 60000)} minutes.`);
 
-                setTimeout(async () => {
+                activeTimers.attendanceReminder = setTimeout(async () => {
                     try {
                         console.log('📢 [Reminder] Checking for groups that need attendance reminders...');
                         const needingReminder = await fetchGroupsNeedingAttendance();
@@ -1890,7 +1873,7 @@ async function startAutomation() {
                 const msUntilReport = target - now;
                 console.log(`📊 [Daily Report] Scheduled in ${Math.round(msUntilReport / 60000)} minutes.`);
 
-                setTimeout(async () => {
+                activeTimers.dailyReport = setTimeout(async () => {
                     try {
                         dailyStats.reset();
                         const report =
@@ -1935,7 +1918,13 @@ async function startAutomation() {
         let recoveredCount = 0;
         for (const m of messages) {
             // Sirf wahi process karenge jo pichle 3 din ke aaye hain
+            // AUR history sync ke waqt commands skip karenge taaki duplicate actions na hon
             if (m.messageTimestamp >= threeDaysAgoTimestamp) {
+                const text = m.message?.conversation || m.message?.extendedTextMessage?.text;
+                if (text && text.startsWith('!')) {
+                    console.log(`⏩ [History] Skipping command during sync: ${text}`);
+                    continue;
+                }
                 await processMessage(m, sock);
                 recoveredCount++;
             }

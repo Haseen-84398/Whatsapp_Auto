@@ -1,6 +1,9 @@
 # Dependency folders
 node_modules/
 
+# Environment variables
+.env
+
 # WhatsApp Session data (VERY IMPORTANT: Never share this)
 wa_session_data/
 

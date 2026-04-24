@@ -8,8 +8,9 @@ A complete, AI-powered WhatsApp Bot designed to automate group creation, documen
 
 | Date | Status | Change Description |
 | :--- | :--- | :--- |
-| **23-Apr-2026** | **Current** | **Migration to Apps Script Bridge**: Removed Direct API/OAuth connection. Switched to a stable Apps Script bridge to bypass Google Cloud's `invalid_grant` and "App Blocked" issues. |
-| **Early 2026** | Legacy | **Direct Google Sheets API**: Used Service Accounts and OAuth2. (Now retired due to frequent token expiration and security policy restrictions). |
+| **24-Apr-2026** | **Latest** | **Groq AI & Stability Migration**: Replaced Google Gemini with Groq (Llama 3) for 10x faster response. Added dynamic `knowledge_base.json` for easy training. Fixed infinite reconnection loops and duplicate timers. |
+| **23-Apr-2026** | Stable | **Migration to Apps Script Bridge**: Removed Direct API/OAuth connection. Switched to a stable Apps Script bridge to bypass Google Cloud's `invalid_grant` and "App Blocked" issues. |
+| **Early 2026** | Legacy | **Direct Google Sheets API**: Used Service Accounts and OAuth2. (Retired). |
 
 ### 🚀 Why the switch to Apps Script?
 Previously, the bot relied on Google's Direct API which required periodic browser logins and complex JSON keys. These often failed due to "Security Policies" or "Expired Tokens". 
@@ -29,13 +30,15 @@ The **new method** uses a small script hosted inside your Google Sheet. It's fas
     - **Add**: Type `!add 9876543210` or naturally say `"isko add kardo 9876543210"`.
     - **Remove**: Type `!remove @User` or naturally say `"remove 9876543210"`.
 
-3. **AI Vision & Photo Verification (Gemini 2.0 Flash)**
-    - Analyzes photos uploaded to the group to determine if they are Aadhaar Cards, Group Photos, etc.
-    - Automatically checks photo quality (Blur/Darkness detection).
+3. **Groq AI Assistant (Llama 3.3 70B)**
+    - **Speed**: Instant responses using Groq's LPUs.
+    - **Training**: Uses `src/knowledge_base.json` for custom Q&A.
+    - **Safety**: Locked to approved answers; handles Hinglish/Hindi inputs automatically.
+    - **Auto-Reply**: Automatically answers queries in Groups and Private chats for non-admin users.
 
-4. **Evidence Tracking System**
-    - Tracks incoming evidence categories for each group.
-    - Command `!evidence` shows exactly what is collected (✅) and what is missing (❌).
+4. **AI Vision & Photo Verification (Legacy)**
+    - Analysis of photos (Aadhaar, Group Photos, etc.).
+    - *Note: Currently on standby during the Groq transition.*
 
 ---
 

@@ -1,16 +1,30 @@
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const https = require('https');
+require('dotenv').config();
 
-const GEMINI_API_KEY = 'AIzaSyB3XvxL0arhgkz0RhO6JMRxsyoI2unPRok';
-const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+const API_KEY = process.env.GEMINI_API_KEY;
 
-async function testGemini() {
-    try {
-        const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
-        const result = await model.generateContent('Say hello to test if you are working');
-        console.log('Success! AI Response:', result.response.text());
-    } catch (err) {
-        console.error('Error:', err);
+const data = JSON.stringify({
+    contents: [{ parts: [{ text: "Hi" }] }]
+});
+
+const options = {
+    hostname: 'generativelanguage.googleapis.com',
+    path: `/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`,
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json'
     }
-}
+};
 
-testGemini();
+const req = https.request(options, (res) => {
+    let body = '';
+    res.on('data', (d) => body += d);
+    res.on('end', () => {
+        console.log('Status:', res.statusCode);
+        console.log('Body:', body);
+    });
+});
+
+req.on('error', (e) => console.error(e));
+req.write(data);
+req.end();

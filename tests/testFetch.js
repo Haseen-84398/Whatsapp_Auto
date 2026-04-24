@@ -1,17 +1,30 @@
-const { fetchPendingGroups } = require('./src/sheets');
+const https = require('https');
+require('dotenv').config();
 
-async function testFetch() {
-    console.log('Sheet check kar raha hoon...');
-    const pending = await fetchPendingGroups();
+const API_KEY = process.env.GEMINI_API_KEY;
 
-    if (pending.length === 0) {
-        console.log("Sheet mein koi 'Pending' group nahi mila.");
-    } else {
-        console.log(`Mujhe ${pending.length} groups mile hain jo banane baaki hain:`);
-        pending.forEach((g) => {
-            console.log(`- Row ${g.rowIndex}: ${g.groupName}`);
-        });
+const data = JSON.stringify({
+    contents: [{ parts: [{ text: "Hi" }] }]
+});
+
+const options = {
+    hostname: 'generativelanguage.googleapis.com',
+    path: `/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${API_KEY}`,
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json'
     }
-}
+};
 
-testFetch();
+const req = https.request(options, (res) => {
+    let body = '';
+    res.on('data', (d) => body += d);
+    res.on('end', () => {
+        console.log('Status:', res.statusCode);
+        console.log('Body:', body);
+    });
+});
+
+req.on('error', (e) => console.error(e));
+req.write(data);
+req.end();
