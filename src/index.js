@@ -639,7 +639,12 @@ async function processMessage(m, sock) {
     const tempText = m.message.conversation || m.message.extendedTextMessage?.text || '';
 
     // Check if this is a bot-generated message (to prevent infinite loops)
-    const isBotMessage = tempText.includes('Attendance Logged') || tempText.includes('Total Scheduled');
+    const isBotMessage = tempText.includes('Attendance Logged') || 
+                         tempText.includes('Total Scheduled') || 
+                         tempText.includes('Attendance Reminder!') ||
+                         tempText.includes('Please Share attendance') ||
+                         tempText.includes('Batch Completed!');
+
 
     const isAttendance = !isBotMessage && /\b(present|absent|male|female)\b/i.test(tempText) && /\d+/.test(tempText);
     const isCommand = tempText.startsWith('!');
