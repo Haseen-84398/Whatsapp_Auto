@@ -655,7 +655,7 @@ async function processMessage(m, sock) {
     const jid = m.key.remoteJid;
 
     // --- SECRET COMMAND: Trigger 24 April Reminders ---
-    if (textMessage && textMessage.toLowerCase() === '!send24') {
+    if (tempText && tempText.toLowerCase() === '!send24') {
         try {
             await sock.sendMessage(jid, { text: '⏳ Checking Google Sheet for 24 Apr missing attendance...' });
             const needingReminder = await fetchGroupsNeedingAttendance();
