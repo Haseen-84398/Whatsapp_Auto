@@ -4,7 +4,7 @@ require('dotenv').config();
 const API_KEY = process.env.GEMINI_API_KEY;
 
 const data = JSON.stringify({
-    contents: [{ parts: [{ text: "Hi" }] }]
+    contents: [{ parts: [{ text: 'Hi' }] }]
 });
 
 const options = {
@@ -18,7 +18,7 @@ const options = {
 
 const req = https.request(options, (res) => {
     let body = '';
-    res.on('data', (d) => body += d);
+    res.on('data', (d) => (body += d));
     res.on('end', () => {
         console.log('Status:', res.statusCode);
         console.log('Body:', body);

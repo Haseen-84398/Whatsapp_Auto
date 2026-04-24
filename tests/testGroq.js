@@ -16,14 +16,14 @@ async function testGroq() {
         path: '/openai/v1/chat/completions',
         method: 'POST',
         headers: {
-            'Authorization': `Bearer ${apiKey}`,
+            Authorization: `Bearer ${apiKey}`,
             'Content-Type': 'application/json'
         }
     };
 
     const req = https.request(options, (res) => {
         let body = '';
-        res.on('data', (d) => body += d);
+        res.on('data', (d) => (body += d));
         res.on('end', () => {
             console.log('Status:', res.statusCode);
             try {

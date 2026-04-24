@@ -47,13 +47,13 @@ function callAI(userMessage) {
             path: '/openai/v1/chat/completions',
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${GROQ_API_KEY}`,
+                Authorization: `Bearer ${GROQ_API_KEY}`,
                 'Content-Type': 'application/json'
             }
         };
         const req = https.request(options, (res) => {
             let body = '';
-            res.on('data', (d) => body += d);
+            res.on('data', (d) => (body += d));
             res.on('end', () => {
                 try {
                     const parsed = JSON.parse(body);
@@ -94,7 +94,7 @@ async function runHindiTests() {
         } catch (err) {
             console.log(`   ❌ ERROR: ${err.message}`);
         }
-        await new Promise(r => setTimeout(r, 1000));
+        await new Promise((r) => setTimeout(r, 1000));
     }
 }
 

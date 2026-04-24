@@ -47,13 +47,13 @@ function callAI(userMessage) {
             path: '/openai/v1/chat/completions',
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${GROQ_API_KEY}`,
+                Authorization: `Bearer ${GROQ_API_KEY}`,
                 'Content-Type': 'application/json'
             }
         };
         const req = https.request(options, (res) => {
             let body = '';
-            res.on('data', (d) => body += d);
+            res.on('data', (d) => (body += d));
             res.on('end', () => {
                 try {
                     const parsed = JSON.parse(body);
@@ -81,7 +81,7 @@ async function runTests() {
         { label: 'TEST 3: Document Checklist', input: 'What documents do I need after assessment?' },
         { label: 'TEST 4: Evidence/Photos', input: 'What photos and videos should I capture?' },
         { label: 'TEST 5: Out of scope (should use fallback)', input: 'What is the weather in Delhi today?' },
-        { label: 'TEST 6: Company Info', input: 'Tell me about Cee Vision' },
+        { label: 'TEST 6: Company Info', input: 'Tell me about Cee Vision' }
     ];
 
     console.log('🚀 Testing Groq AI with Knowledge Base...\n');
@@ -98,7 +98,7 @@ async function runTests() {
             console.log(`   ❌ ERROR: ${err.message}`);
         }
         // Small delay between calls to avoid rate limits
-        await new Promise(r => setTimeout(r, 1000));
+        await new Promise((r) => setTimeout(r, 1000));
     }
     console.log('\n✅ All tests completed!');
 }

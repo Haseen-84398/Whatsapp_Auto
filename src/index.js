@@ -38,7 +38,7 @@ function clearAllTimers() {
     if (activeTimers.attendanceReminder) clearTimeout(activeTimers.attendanceReminder);
     if (activeTimers.dailyReport) clearTimeout(activeTimers.dailyReport);
     if (activeTimers.reconnect) clearTimeout(activeTimers.reconnect);
-    
+
     activeTimers.autoSync = null;
     activeTimers.attendanceReminder = null;
     activeTimers.dailyReport = null;
@@ -117,14 +117,14 @@ function callAI(userMessage) {
             path: '/openai/v1/chat/completions',
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${GROQ_API_KEY}`,
+                Authorization: `Bearer ${GROQ_API_KEY}`,
                 'Content-Type': 'application/json'
             }
         };
 
         const req = https.request(options, (res) => {
             let body = '';
-            res.on('data', (d) => body += d);
+            res.on('data', (d) => (body += d));
             res.on('end', () => {
                 try {
                     const parsed = JSON.parse(body);
@@ -152,7 +152,7 @@ function isBotAdmin(senderJid) {
 
 // === AI VISION FUNCTION (Placeholder for Groq - currently limited) ===
 function callAIWithImage(base64Image, prompt, mimeType = 'image/jpeg') {
-    return Promise.resolve("AI Vision features are currently being updated for Groq.");
+    return Promise.resolve('AI Vision features are currently being updated for Groq.');
 }
 
 // Group names ko baar-baar fetch na karna pade isliye cache
@@ -466,7 +466,7 @@ Approval Policy: Ensure that no candidate is permitted to leave the center witho
 *Regards, Operations Team Cee Vision Technologies*`,
         folder: 'MESC',
         documents: [
-            { file: "Assessor_s Feedback Form.pdf", displayName: 'Assessor Feedback Form.pdf' },
+            { file: 'Assessor_s Feedback Form.pdf', displayName: 'Assessor Feedback Form.pdf' },
             { file: 'Candidate Feedback Form.pdf', displayName: 'Candidate Feedback Form.pdf' },
             { file: 'MESC VTP Declaration.pdf', displayName: 'MESC VTP Declaration.pdf' },
             {
@@ -635,14 +635,14 @@ async function processMessage(m, sock) {
 
     // Default skip own messages UNLESS it's an attendance update or a command
     // This allows the user to type attendance manually on the same phone.
-    const tempText = m.message.conversation || m.message.extendedTextMessage?.text || "";
-    
+    const tempText = m.message.conversation || m.message.extendedTextMessage?.text || '';
+
     // Check if this is a bot-generated message (to prevent infinite loops)
     const isBotMessage = tempText.includes('Attendance Logged') || tempText.includes('Total Scheduled');
-    
+
     const isAttendance = !isBotMessage && /\b(present|absent|male|female)\b/i.test(tempText) && /\d+/.test(tempText);
     const isCommand = tempText.startsWith('!');
-    
+
     if (m.key.fromMe && !isAttendance && !isCommand) return;
 
     let msgType = Object.keys(m.message)[0];
@@ -724,7 +724,7 @@ async function processMessage(m, sock) {
             const members = Array.from(new Set([...defaultTeamMembers, ...newMembers]));
 
             let selectedConfig = BATCH_GUIDELINES['default']; // Fix: Declare selectedConfig
-            
+
             // Safety check
             if (!canCreateGroup()) {
                 await sock.sendMessage(jid, {
@@ -821,24 +821,25 @@ async function processMessage(m, sock) {
             const tracker = getAttendanceTracker();
             const batchData = tracker[batchId] || {};
             const sumAttendance = { present: 0, absent: 0, male: 0, female: 0 };
-            
+
             for (const gJid in batchData) {
                 const data = batchData[gJid];
-                sumAttendance.present += (data.present || 0);
-                sumAttendance.absent += (data.absent || 0);
-                sumAttendance.male += (data.male || 0);
-                sumAttendance.female += (data.female || 0);
+                sumAttendance.present += data.present || 0;
+                sumAttendance.absent += data.absent || 0;
+                sumAttendance.male += data.male || 0;
+                sumAttendance.female += data.female || 0;
             }
 
             await sock.sendMessage(jid, {
-                text: `✅ *Batch Completed!* 🏁\n\n` +
-                      `🆔 Batch ID: ${batchId}\n` +
-                      `📊 *Final Attendance Summary:*\n` +
-                      `✅ Total Present: ${sumAttendance.present}\n` +
-                      `❌ Total Absent: ${sumAttendance.absent}\n` +
-                      `👨 Total Male: ${sumAttendance.male}\n` +
-                      `👩 Total Female: ${sumAttendance.female}\n\n` +
-                      `📌 Is batch ka final attendance record save ho gaya hai.`
+                text:
+                    `✅ *Batch Completed!* 🏁\n\n` +
+                    `🆔 Batch ID: ${batchId}\n` +
+                    `📊 *Final Attendance Summary:*\n` +
+                    `✅ Total Present: ${sumAttendance.present}\n` +
+                    `❌ Total Absent: ${sumAttendance.absent}\n` +
+                    `👨 Total Male: ${sumAttendance.male}\n` +
+                    `👩 Total Female: ${sumAttendance.female}\n\n` +
+                    `📌 Is batch ka final attendance record save ho gaya hai.`
             });
 
             console.log(`🏁 Batch ${batchId} marked as Completed.`);
@@ -1232,7 +1233,11 @@ async function processMessage(m, sock) {
 
     // --- COMMAND: COMPLETE EXIT (Step 1) ---
     if (textMessage && lowerText === 'complete exit') {
-        const isAdmin = ['918006685100@s.whatsapp.net', '918006133100@s.whatsapp.net', '918448758878@s.whatsapp.net'].includes(m.key.participant || jid);
+        const isAdmin = [
+            '918006685100@s.whatsapp.net',
+            '918006133100@s.whatsapp.net',
+            '918448758878@s.whatsapp.net'
+        ].includes(m.key.participant || jid);
         if (!isAdmin) {
             console.log(`⚠️ Unauthorized exit attempt by ${m.key.participant || jid}`);
             return;
@@ -1532,8 +1537,10 @@ async function processMessage(m, sock) {
                 const senderJid = m.key.participant || jid;
                 const isGroup = jid.endsWith('@g.us');
                 const isCommand = textMessage.startsWith('!');
-                const isAttendanceData = /\b(present|absent)\b/.test(textMessage.toLowerCase()) && /\d+/.test(textMessage);
-                const isModeReply = pendingRenames && pendingRenames.has(m.message?.extendedTextMessage?.contextInfo?.stanzaId);
+                const isAttendanceData =
+                    /\b(present|absent)\b/.test(textMessage.toLowerCase()) && /\d+/.test(textMessage);
+                const isModeReply =
+                    pendingRenames && pendingRenames.has(m.message?.extendedTextMessage?.contextInfo?.stanzaId);
 
                 if (!isGroup && !isCommand && !isAttendanceData && !isModeReply && !isBotAdmin(senderJid)) {
                     try {
