@@ -657,17 +657,26 @@ async function processMessage(m, sock) {
     // --- SECRET COMMAND: Trigger 24 April Reminders ---
     if (tempText && tempText.toLowerCase() === '!send24') {
         try {
-            await sock.sendMessage(jid, { text: '⏳ Checking Google Sheet for 24 Apr missing attendance...' });
-            const needingReminder = await fetchGroupsNeedingAttendance();
-            const todaysGroups = needingReminder.filter(g => {
+            const sheetGroups = await fetchGroupsNeedingAttendance();
+            const todayKeywords = ['24-apr', '24_apr', '24 apr', '24/04', '24-04'];
+            
+            const todaysGroups = sheetGroups.filter(g => {
                 const name = g.groupName.toLowerCase();
-                return name.includes('24-apr') || name.includes('24_apr') || name.includes('24 apr');
+                return todayKeywords.some(kw => name.includes(kw));
             });
 
             if (todaysGroups.length === 0) {
-                await sock.sendMessage(jid, { text: '✅ No groups found for 24 Apr that need reminders.' });
+                const foundDates = [...new Set(sheetGroups.map(g => g.groupName.split('_')[2] || 'Unknown'))];
+                await sock.sendMessage(jid, { 
+                    text: `❌ *No groups found for 24 Apr.*\n\n` +
+                          `📊 Sheet mein total ${sheetGroups.length} groups ki attendance missing hai, lekin unki dates '24 Apr' nahi hain.\n` +
+                          `📌 Sheet mein ye dates mili hain: ${foundDates.join(', ')}\n\n` +
+                          `*Tip:* Check karein ki sheet mein 'Assessment Start Date' column mein kya likha hai.`
+                });
                 return;
             }
+
+            await sock.sendMessage(jid, { text: `🎯 Found ${todaysGroups.length} groups for today. Sending reminders...` });
 
             await sock.sendMessage(jid, { text: `Found ${todaysGroups.length} groups. Sending reminders now...` });
             
