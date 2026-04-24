@@ -1654,10 +1654,41 @@ async function processMessage(m, sock) {
                         const batchId = groupTitle.split('_')[0].trim();
 
                         if (batchId && batchId.length >= 3) {
-                            // --- OPTION B: Simple Overwrite Logic (Safer for common errors) ---
-                            // We directly update the sheet with the latest message's values.
-                            // If you have multiple groups for one batch, the latest update wins.
-                            const result = await updateSheetAttendance(batchId, attendance);
+                            const upperTitle = groupTitle.toUpperCase();
+                            const isMultiDaySum = upperTitle.includes('DAY 1') || upperTitle.includes('DAY 2') || upperTitle.includes('DAY1') || upperTitle.includes('DAY2');
+                            
+                            let finalAttendance = attendance;
+
+                            if (isMultiDaySum) {
+                                // --- OPTION A: Multi-Group Addition Logic (For Day 1 & Day 2) ---
+                                let tracker = getAttendanceTracker();
+                                if (!tracker[batchId]) tracker[batchId] = {};
+
+                                // Save this specific group's contribution
+                                tracker[batchId][jid] = attendance;
+                                saveAttendanceTracker(tracker);
+
+                                // Calculate the SUM
+                                const sumAttendance = {};
+                                for (const groupJid in tracker[batchId]) {
+                                    const gData = tracker[batchId][groupJid];
+                                    if (gData.present !== undefined)
+                                        sumAttendance.present = (sumAttendance.present || 0) + gData.present;
+                                    if (gData.absent !== undefined)
+                                        sumAttendance.absent = (sumAttendance.absent || 0) + gData.absent;
+                                    if (gData.male !== undefined)
+                                        sumAttendance.male = (sumAttendance.male || 0) + gData.male;
+                                    if (gData.female !== undefined)
+                                        sumAttendance.female = (sumAttendance.female || 0) + gData.female;
+                                }
+                                finalAttendance = sumAttendance;
+                                console.log(`📊 [Summing] Multi-day batch detected. Total Present: ${finalAttendance.present}`);
+                            } else {
+                                // --- OPTION B: Simple Overwrite Logic (For Day 0, Day 6, etc.) ---
+                                console.log(`📊 [Overwrite] Single day or Day 0/6 detected. Overwriting sheet values.`);
+                            }
+
+                            const result = await updateSheetAttendance(batchId, finalAttendance);
 
                             await sock.sendMessage(
                                 jid,
