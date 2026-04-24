@@ -65,10 +65,11 @@ If you are moving this to a different computer:
 
 ## 📁 Project Structure
 
-- `src/index.js`: Main bot logic and WhatsApp connection.
-- `src/sheets.js`: Updated bridge logic for Google Sheets.
-- `tests/`: Contains `test_sheets.js` to verify connection anytime.
-- `downloads/`: Organized media and documents.
+- `src/`: Core logic (WhatsApp connection, Google Sheets bridge, data).
+- `docs/`: Documentation and setup guides.
+- `tests/`: Testing and debug scripts.
+- `downloads/`: Automatically organized media and chat logs.
+- `ssc_documents/`: Master folder for guidelines and PDF distribution.
 
 ---
 
@@ -78,10 +79,11 @@ If you are moving this to a different computer:
 | :------------------------------ | :------------------------------------------ | :------------ |
 | **`!add [number]`**             | Adds a member and sends guidelines.         | In Group      |
 | **`!remove [number]`**          | Removes a member.                           | In Group      |
-| **`!evidence`**                 | Shows missing & collected photos.           | In Group      |
-| **`!report`**                   | Shows today's bot statistics.               | Anywhere      |
+| **`!completed`**                | Sends final attendance summary for batch.   | In Group      |
+| **`!need [file_name]`**         | Requests a specific file (e.g., !need vtp). | In Group      |
 | **`!creategroup Name\|Number`** | Manually creates a group.                   | Anywhere      |
 | **`!mode [category]`**          | Forces media to save under a specific name. | In Group      |
+| **`!guidelines`**               | Manually triggers guidelines & docs.        | In Group      |
 
 ---
 
