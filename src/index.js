@@ -831,15 +831,7 @@ async function processMessage(m, sock) {
             }
 
             await sock.sendMessage(jid, {
-                text:
-                    `✅ *Batch Completed!* 🏁\n\n` +
-                    `🆔 Batch ID: ${batchId}\n` +
-                    `📊 *Final Attendance Summary:*\n` +
-                    `✅ Total Present: ${sumAttendance.present}\n` +
-                    `❌ Total Absent: ${sumAttendance.absent}\n` +
-                    `👨 Total Male: ${sumAttendance.male}\n` +
-                    `👩 Total Female: ${sumAttendance.female}\n\n` +
-                    `📌 Is batch ka final attendance record save ho gaya hai.`
+                text: 'Please Share attendance \nPresent : \nAbsent : \nMale : \nFemale :'
             });
 
             console.log(`🏁 Batch ${batchId} marked as Completed.`);
