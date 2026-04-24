@@ -125,6 +125,8 @@ async function fetchPendingGroups() {
     const idxStatus = headers.findIndex((h) => h.includes('group status') || h === 'status');
     const idxStartDate = headers.findIndex((h) => h.includes('assessment start date'));
     const idxAssessorMobile = headers.findIndex((h) => h.includes('assessor mobile number'));
+    const idxLanguage = headers.findIndex((h) => h.includes('question paper language'));
+    const idxJobRole = headers.findIndex((h) => h === 'job role' || h.includes('job role'));
 
     if (idxStatus === -1) {
         console.error('❌ "Group Status" column nahi mila!');
@@ -142,6 +144,8 @@ async function fetchPendingGroups() {
         const status = (row[idxStatus] || '').toString().trim().toLowerCase();
         const startDate = idxStartDate !== -1 ? row[idxStartDate] || '' : '';
         const assessorMobile = idxAssessorMobile !== -1 ? row[idxAssessorMobile] || '' : '';
+        const language = idxLanguage !== -1 ? row[idxLanguage] || '' : '';
+        const jobRole = idxJobRole !== -1 ? row[idxJobRole] || '' : '';
 
         if (batchId && sector && status === 'pending') {
             const sscShort = mapSectorToSSC(sector);
@@ -154,7 +158,9 @@ async function fetchPendingGroups() {
                 batchId: batchId,
                 day: day,
                 sector: sector,
-                assessorMobile: assessorMobile.toString().trim()
+                assessorMobile: assessorMobile.toString().trim(),
+                language: language.toString().trim(),
+                jobRole: jobRole.toString().trim()
             });
         }
     }
@@ -204,7 +210,7 @@ async function fetchGroupsNeedingAttendance() {
         if (status === 'created' && (!presentCount || presentCount === '0' || presentCount === '')) {
             const sscShort = mapSectorToSSC(sector);
             const groupName = constructGroupName(batchId, sscShort, startDate, day);
-            needingReminder.push({ batchId, groupName });
+            needingReminder.push({ batchId, groupName, startDate });
         }
     }
     return needingReminder;

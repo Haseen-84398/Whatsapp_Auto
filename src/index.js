@@ -551,7 +551,7 @@ Priya
 Cee Vision Technologies Pvt. Ltd.
 A-173, sector 43,
 Noida, Uttar Pradesh – 201303
-    Mb. 84487 58878`;
+Mobile No. : 8448758878`;
 
 // Removed duplicate getGuidelinesForTitle and sendGuidelines functions.
 
@@ -584,10 +584,12 @@ async function sendGroupGuidelines(jid, groupData, sock) {
             (upperTitle.includes('DAY 0') || upperTitle.includes('DAY 6'))
         ) {
             selectedConfig = Object.assign({}, BATCH_GUIDELINES['PM_VISHWAKARMA']); // Clone to allow dynamic changes
-            
-            // Apply CSDCI specific PM Vishwakarma Day 0 guidelines
-            if (upperTitle.includes('CSDCI') && upperTitle.includes('DAY 0')) {
-                selectedConfig.text = `Important Instructions
+
+            // Apply CSDCI specific PM Vishwakarma Day 0 and Day 6 guidelines
+            if (upperTitle.includes('CSDCI') && (upperTitle.includes('DAY 0') || upperTitle.includes('DAY 6') || upperTitle.includes('DAY0') || upperTitle.includes('DAY6'))) {
+                const isDay6 = upperTitle.includes('DAY 6') || upperTitle.includes('DAY6');
+
+                let instructions = `Important Instructions
 
 Please share geotag photos & videos of today assessment in this group -
 1. Assessor In time Photo 
@@ -606,16 +608,26 @@ Please share geotag photos & videos of today assessment in this group -
 2. Original Attendance sheet 
 3. Original Scan copy of theory papers
 4. Filled tool list Document 
- 
+`;
+
+                if (isDay6) {
+                    instructions += `
+Required Documents to be Collected by the Assessor
+1. Assessment Planning Sheet – Pre-approved plan for conducting the assessment
+2. Attendance Sheet – Signed by candidates and assessor with TP Stamp & Signature.
+3. Training Center (TC) Feedback Form – Feedback from the center with TP stamp
+4. Assessor Feedback Form – Self-observation and remarks from the assessor
+5. Trainee Feedback Forms – Feedback from the candidates on the assessment process with the TP stamp
+6. Question Papers – Used during the theory session
+7. Tools & Equipment List – As per job role and NOS with TP Stamp & Signature
+`;
+                }
+
+                instructions += `
 Pls courier hard copy of documents to the below mentioned address 
-
-Priya
-Cee Vision Technologies Pvt. Ltd.
-A-173, sector 43,
-Noida, Uttar Pradesh – 201303
-Mb. 84487 58878
-
 Also share courier receipt in this group.`;
+
+                selectedConfig.text = instructions;
                 selectedConfig.folder = null; // We will handle files dynamically
             }
         }
@@ -634,35 +646,48 @@ Also share courier receipt in this group.`;
 
         // 3. Collect Documents
         let docsToSend = [];
-        
-        // Custom File Logic for PM Vishwakarma CSDCI Day 0
-        if (upperTitle.includes('CSDCI') && upperTitle.includes('DAY 0') && upperTitle.includes('PM')) {
-            // Because PM is not explicitly in the title (it's PM Vishwakarma but title usually has Batch ID), we just use CSDCI + DAY 0 based on user request
-        }
-        if (selectedConfig.text && selectedConfig.text.includes('Assessor Filled Invoice') && upperTitle.includes('CSDCI') && upperTitle.includes('DAY 0')) {
-            const baseFolder = path.join(process.cwd(), 'ssc_documents', 'PM-Vishwakarma', 'CSDCI', 'Day 0');
-            
-            // 1. Invoice
-            const invoiceFile = path.join(baseFolder, 'Invoice.pdf');
-            if (fs.existsSync(invoiceFile)) docsToSend.push({ file: invoiceFile, displayName: 'Invoice.pdf', isAbsolutePath: true });
 
-            // Extract Job Role Code (e.g. 'CON/N0160' from 'Brick Mason CON/N0160')
-            // Pattern looks for letters followed by optional slash/hyphen and numbers/letters (e.g., CONN0160, CON/N0160)
+        // Custom File Logic for PM Vishwakarma CSDCI Day 0 and Day 6
+        const isDay0 = upperTitle.includes('DAY 0') || upperTitle.includes('DAY0');
+        const isDay6 = upperTitle.includes('DAY 6') || upperTitle.includes('DAY6');
+
+        if (selectedConfig.text && selectedConfig.text.includes('Assessor Filled Invoice') && upperTitle.includes('CSDCI') && (isDay0 || isDay6)) {
+            const dayFolder = isDay0 ? 'Day 0' : 'Day 6';
+            const baseFolder = path.join(process.cwd(), 'ssc_documents', 'PM-Vishwakarma', 'CSDCI', dayFolder);
+
+            // 1. Invoice (Only send automatically for Day 0)
+            if (isDay0) {
+                const invoiceFile = path.join(baseFolder, 'Invoice.pdf');
+                if (fs.existsSync(invoiceFile)) docsToSend.push({ file: invoiceFile, displayName: 'Invoice.pdf', isAbsolutePath: true });
+            }
+
+            // Extract Job Role Code (e.g. 'CON/N0160' from 'Brick Mason CON/N0160')            // Pattern looks for letters followed by optional slash/hyphen and numbers/letters (e.g., CONN0160, CON/N0160)
             const jobRoleCodeMatch = jobRole.match(/([A-Z]{2,}\s*[\/\-_]?\s*[A-Z]?[0-9]{3,})/i);
-            const jobRoleCode = jobRoleCodeMatch 
-                ? jobRoleCodeMatch[1].replace(/[^a-zA-Z0-9]/g, '') 
+            const jobRoleCode = jobRoleCodeMatch
+                ? jobRoleCodeMatch[1].replace(/[^a-zA-Z0-9]/g, '')
                 : jobRole.replace(/[^a-zA-Z0-9]/g, ''); // Fallback to stripped full text
-            
-            // 2. Question Paper & Tool List folders
+
+            // 2. Question Paper, Tool List, & Extra Day 6 files
             if (fs.existsSync(baseFolder)) {
+                // --- Extra files for Day 6 ---
+                if (isDay6) {
+                    const filesInBase = fs.readdirSync(baseFolder);
+
+                    const assessmentPlanFile = filesInBase.find(f => f.toLowerCase().includes('assessment plan'));
+                    if (assessmentPlanFile) docsToSend.push({ file: path.join(baseFolder, assessmentPlanFile), displayName: assessmentPlanFile, isAbsolutePath: true });
+
+                    const traineeFeedbackFile = filesInBase.find(f => f.toLowerCase().includes('trainee feedback'));
+                    if (traineeFeedbackFile) docsToSend.push({ file: path.join(baseFolder, traineeFeedbackFile), displayName: traineeFeedbackFile, isAbsolutePath: true });
+                }
+
                 const subfolders = fs.readdirSync(baseFolder).filter(f => fs.statSync(path.join(baseFolder, f)).isDirectory());
-                
+
                 // 2a. Tool List (In 'Tool List' subfolder)
                 const toolListFolderPath = path.join(baseFolder, 'Tool List');
                 if (fs.existsSync(toolListFolderPath)) {
                     const toolFiles = fs.readdirSync(toolListFolderPath);
                     const numbersOnly = jobRoleCode.replace(/\D/g, ''); // e.g. '0160'
-                    
+
                     const toolListFile = toolFiles.find(f => {
                         const cleanFile = f.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
                         return cleanFile.includes(jobRoleCode.toLowerCase()) || (numbersOnly && cleanFile.includes(numbersOnly));
@@ -678,15 +703,15 @@ Also share courier receipt in this group.`;
                     const cleanFolder = f.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
                     return cleanFolder.includes(jobRoleCode.toLowerCase()) || (jobRoleCode.replace(/\D/g, '') && cleanFolder.includes(jobRoleCode.replace(/\D/g, '')));
                 });
-                
+
                 if (matchingFolder && matchingFolder !== 'Tool List') {
                     const jobRolePath = path.join(baseFolder, matchingFolder);
                     const files = fs.readdirSync(jobRolePath);
-                    
+
                     // Match Language for Question Paper
                     const targetLang = language.toLowerCase();
                     const matchingLangFile = files.find(f => f.toLowerCase().includes(targetLang));
-                    
+
                     if (matchingLangFile) {
                         docsToSend.push({ file: path.join(jobRolePath, matchingLangFile), displayName: matchingLangFile, isAbsolutePath: true });
                     } else if (files.length > 0) {
@@ -751,11 +776,11 @@ async function processMessage(m, sock) {
     const tempText = m.message.conversation || m.message.extendedTextMessage?.text || '';
 
     // Check if this is a bot-generated message (to prevent infinite loops)
-    const isBotMessage = tempText.includes('Attendance Logged') || 
-                         tempText.includes('Total Scheduled') || 
-                         tempText.includes('Attendance Reminder!') ||
-                         tempText.includes('Please Share attendance') ||
-                         tempText.includes('Batch Completed!');
+    const isBotMessage = tempText.includes('Attendance Logged') ||
+        tempText.includes('Total Scheduled') ||
+        tempText.includes('Attendance Reminder!') ||
+        tempText.includes('Please Share attendance') ||
+        tempText.includes('Batch Completed!');
 
 
     const isAttendance = !isBotMessage && /\b(present|absent|male|female)\b/i.test(tempText) && /\d+/.test(tempText);
@@ -771,7 +796,7 @@ async function processMessage(m, sock) {
         try {
             const sheetGroups = await fetchGroupsNeedingAttendance();
             const todayKeywords = ['24-apr', '24_apr', '24 apr', '24/04', '24-04'];
-            
+
             const todaysGroups = sheetGroups.filter(g => {
                 const name = g.groupName.toLowerCase();
                 return todayKeywords.some(kw => name.includes(kw));
@@ -779,11 +804,11 @@ async function processMessage(m, sock) {
 
             if (todaysGroups.length === 0) {
                 const foundDates = [...new Set(sheetGroups.map(g => g.groupName.split('_')[2] || 'Unknown'))];
-                await sock.sendMessage(jid, { 
+                await sock.sendMessage(jid, {
                     text: `❌ *No groups found for 24 Apr.*\n\n` +
-                          `📊 Sheet mein total ${sheetGroups.length} groups ki attendance missing hai, lekin unki dates '24 Apr' nahi hain.\n` +
-                          `📌 Sheet mein ye dates mili hain: ${foundDates.join(', ')}\n\n` +
-                          `*Tip:* Check karein ki sheet mein 'Assessment Start Date' column mein kya likha hai.`
+                        `📊 Sheet mein total ${sheetGroups.length} groups ki attendance missing hai, lekin unki dates '24 Apr' nahi hain.\n` +
+                        `📌 Sheet mein ye dates mili hain: ${foundDates.join(', ')}\n\n` +
+                        `*Tip:* Check karein ki sheet mein 'Assessment Start Date' column mein kya likha hai.`
                 });
                 return;
             }
@@ -791,10 +816,10 @@ async function processMessage(m, sock) {
             await sock.sendMessage(jid, { text: `🎯 Found ${todaysGroups.length} groups for today. Sending reminders...` });
 
             await sock.sendMessage(jid, { text: `Found ${todaysGroups.length} groups. Sending reminders now...` });
-            
+
             const allGroups = await sock.groupFetchAllParticipating();
             const groupsArray = Object.values(allGroups);
-            
+
             let sentCount = 0;
             for (const item of todaysGroups) {
                 // Smarter matching: look for a group that contains the Batch ID
@@ -803,7 +828,7 @@ async function processMessage(m, sock) {
                     const bId = item.batchId.toString().toLowerCase();
                     return sub.includes(bId);
                 });
-                
+
                 if (targetGroup) {
                     await sock.sendMessage(targetGroup.id, {
                         text: `📢 *Attendance Reminder!* 📊\n\nPllease update the today's batch attendance (Present, Absent, Male, Female) in this group to maintain the records.\n\n*Format:* \nPresent : \nAbsent : \nMale : \nFemale : `
@@ -1070,6 +1095,59 @@ async function processMessage(m, sock) {
             await sock.sendMessage(jid, { text: `❌ Error aagaya: ${err.message}` });
         }
         return; // Normal chat saving system skip kar dein command chalne ke baad
+    }
+
+    // --- COMMAND: Invoice On-Demand Sender (!invoice) ---
+    if (textMessage && textMessage.toLowerCase().trim() === '!invoice') {
+        const jid = m.key.remoteJid;
+        try {
+            const groupMetadata = await sock.groupMetadata(jid);
+            const upperTitle = groupMetadata.subject.toUpperCase();
+            const dayFolder = upperTitle.includes('DAY 6') || upperTitle.includes('DAY6') ? 'Day 6' : 'Day 0'; // Default to Day 0 if Day 6 not found
+
+            let foundFile = null;
+            const specificInvoicePath = path.join(process.cwd(), 'ssc_documents', 'PM-Vishwakarma', 'CSDCI', dayFolder, 'Invoice.pdf');
+
+            if (fs.existsSync(specificInvoicePath)) {
+                foundFile = specificInvoicePath;
+            } else {
+                // Fallback: search anywhere in ssc_documents for Invoice.pdf
+                const sscBaseDir = path.join(process.cwd(), 'ssc_documents');
+                if (fs.existsSync(sscBaseDir)) {
+                    const findInvoiceRecursive = (dir) => {
+                        const files = fs.readdirSync(dir);
+                        for (const file of files) {
+                            const fullPath = path.join(dir, file);
+                            if (fs.lstatSync(fullPath).isDirectory()) {
+                                const res = findInvoiceRecursive(fullPath);
+                                if (res) return res;
+                            } else if (file.toLowerCase() === 'invoice.pdf') {
+                                return fullPath;
+                            }
+                        }
+                        return null;
+                    };
+                    foundFile = findInvoiceRecursive(sscBaseDir);
+                }
+            }
+
+            if (foundFile) {
+                await sock.sendMessage(jid, {
+                    document: fs.readFileSync(foundFile),
+                    mimetype: 'application/pdf',
+                    fileName: 'Invoice.pdf'
+                });
+                console.log(`📂 [On-Demand] Invoice bhej di gayi.`);
+            } else {
+                await sock.sendMessage(jid, {
+                    text: `❌ Mafi chahenge, mujhe system me Invoice.pdf file nahi mili.`
+                });
+            }
+        } catch (err) {
+            console.error('Error in !invoice command:', err);
+            await sock.sendMessage(jid, { text: `❌ Error aagaya: ${err.message}` });
+        }
+        return;
     }
 
     // --- COMMAND: Question Paper Auto Sender ---
@@ -1410,7 +1488,7 @@ async function processMessage(m, sock) {
             const senderId = m.key.participant || jid;
             const participant = groupMetadata.participants.find(p => p.id === senderId);
             const isGroupAdmin = participant && (participant.admin === 'admin' || participant.admin === 'superadmin');
-            
+
             // Fallback for @lid users where WhatsApp hides the real phone number
             const fallbackAuthorized = ['19353642786923@lid', '918006685100', '918006133100', '918448758878'].some(id => senderId.includes(id));
 
@@ -1437,7 +1515,7 @@ async function processMessage(m, sock) {
             const senderId = m.key.participant || jid;
             const participant = groupMetadata.participants.find(p => p.id === senderId);
             const isGroupAdmin = participant && (participant.admin === 'admin' || participant.admin === 'superadmin');
-            
+
             // Fallback for @lid users where WhatsApp hides the real phone number
             const fallbackAuthorized = ['19353642786923@lid', '918006685100', '918006133100', '918448758878'].some(id => senderId.includes(id));
 
@@ -1576,30 +1654,10 @@ async function processMessage(m, sock) {
                         const batchId = groupTitle.split('_')[0].trim();
 
                         if (batchId && batchId.length >= 3) {
-                            // --- OPTION A: Multi-Group Addition Logic ---
-                            let tracker = getAttendanceTracker();
-                            if (!tracker[batchId]) tracker[batchId] = {};
-
-                            // Save this specific group's contribution (e.g. Day 1)
-                            tracker[batchId][jid] = attendance;
-                            saveAttendanceTracker(tracker);
-
-                            // Calculate the SUM for the whole batch across all groups (Day 1 + Day 2)
-                            const sumAttendance = {};
-                            for (const groupJid in tracker[batchId]) {
-                                const gData = tracker[batchId][groupJid];
-                                if (gData.present !== undefined)
-                                    sumAttendance.present = (sumAttendance.present || 0) + gData.present;
-                                if (gData.absent !== undefined)
-                                    sumAttendance.absent = (sumAttendance.absent || 0) + gData.absent;
-                                if (gData.male !== undefined)
-                                    sumAttendance.male = (sumAttendance.male || 0) + gData.male;
-                                if (gData.female !== undefined)
-                                    sumAttendance.female = (sumAttendance.female || 0) + gData.female;
-                            }
-
-                            // Update sheet with the total sum
-                            const result = await updateSheetAttendance(batchId, sumAttendance);
+                            // --- OPTION B: Simple Overwrite Logic (Safer for common errors) ---
+                            // We directly update the sheet with the latest message's values.
+                            // If you have multiple groups for one batch, the latest update wins.
+                            const result = await updateSheetAttendance(batchId, attendance);
 
                             await sock.sendMessage(
                                 jid,
@@ -2140,6 +2198,53 @@ async function startAutomation() {
             }
 
             scheduleAttendanceReminder();
+
+            // === FEATURE: Aggressive Attendance Reminder (Every 120 mins) ===
+            function startAggressiveReminders() {
+                // 120 mins
+                const INTERVAL_MS = 120 * 60 * 1000;
+                
+                setInterval(async () => {
+                    try {
+                        console.log('📢 [Aggressive-Reminder] Checking for groups that need urgent attendance updates...');
+                        const allNeeding = await fetchGroupsNeedingAttendance();
+                        
+                        if (allNeeding.length === 0) return;
+
+                        const now = new Date();
+                        const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+                        const allGroups = await sock.groupFetchAllParticipating();
+                        const groupsArray = Object.values(allGroups);
+
+                        for (const item of allNeeding) {
+                            // Check if group exists in cache or fetch metadata
+                            const targetGroup = groupsArray.find((g) => g.subject === item.groupName);
+                            if (!targetGroup) continue;
+
+                            // Parse startDate to check if it's within last 24 hours
+                            // item.startDate might be in various formats, we try to parse it
+                            const batchDate = new Date(item.startDate);
+                            
+                            // If date parsing failed or it's within the window
+                            const isRecent = !isNaN(batchDate.getTime()) && batchDate >= twentyFourHoursAgo;
+                            
+                            if (isRecent) {
+                                await sock.sendMessage(targetGroup.id, {
+                                    text: `⚠️ *Urgently Required: Attendance* 📊\n\nIs group mein aaj ka attendance record abhi tak update nahi hua hai. Kripya niche diye format mein details bhejein:\n\n*Format:* \nPresent : \nAbsent : \nMale : \nFemale : \n\n_(Ye reminder har 120 mins (2 ghante) mein tab tak aayega jab tak record update nahi ho jata)_`
+                                });
+                                console.log(`✅ [Aggressive-Reminder] Sent to: ${item.groupName}`);
+                                await new Promise((r) => setTimeout(r, 3000));
+                            }
+                        }
+                    } catch (err) {
+                        console.error('❌ [Aggressive-Reminder] Error:', err.message);
+                    }
+                }, INTERVAL_MS);
+            }
+            
+            // Start after 5 mins to allow initial sync
+            setTimeout(startAggressiveReminders, 5 * 60 * 1000);
 
             // === FEATURE 2: Daily Auto Report at 10 PM IST ===
             function scheduleDailyReport() {
