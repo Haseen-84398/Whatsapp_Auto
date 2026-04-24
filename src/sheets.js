@@ -122,7 +122,7 @@ async function fetchPendingGroups() {
     const idxBatchId = headers.findIndex((h) => h.includes('batch id'));
     const idxDay = headers.findIndex((h) => h === 'day');
     const idxSector = headers.findIndex((h) => h === 'sector');
-    const idxStatus = headers.findIndex((h) => h.includes('group status'));
+    const idxStatus = headers.findIndex((h) => h.includes('group status') || h === 'status');
     const idxStartDate = headers.findIndex((h) => h.includes('assessment start date'));
     const idxAssessorMobile = headers.findIndex((h) => h.includes('assessor mobile number'));
 
@@ -185,7 +185,7 @@ async function fetchGroupsNeedingAttendance() {
 
     const headers = rows[0].map((h) => (h ? h.toString().trim().toLowerCase() : ''));
     const idxBatchId = headers.findIndex((h) => h.includes('batch id'));
-    const idxStatus = headers.findIndex((h) => h.includes('group status'));
+    const idxStatus = headers.findIndex((h) => h.includes('group status') || h === 'status');
     const idxPresent = headers.findIndex((h) => h === 'present' || h.startsWith('present'));
     const idxStartDate = headers.findIndex((h) => h.includes('assessment start date'));
     const idxDay = headers.findIndex((h) => h === 'day');

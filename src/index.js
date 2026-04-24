@@ -1348,18 +1348,25 @@ async function processMessage(m, sock) {
 
             if (hasPresent || hasAbsent || hasMale || hasFemale) {
                 try {
-                    // 1. Extract numbers using Regex
-                    const pMatch = lowerText.match(/\bpresent\s*[:\-]*\s*(\d+)/);
-                    const aMatch = lowerText.match(/\babsent\s*[:\-]*\s*(\d+)/);
-                    const mMatch = lowerText.match(/\bmale\s*[:\-]*\s*(\d+)/);
-                    const fMatch = lowerText.match(/\bfemale\s*[:\-]*\s*(\d+)/);
+                    // 1. Extract numbers using Regex (handles "present: 24" and "24 present")
+                    const getCount = (keyword, text) => {
+                        const regex = new RegExp(`(?:\\b${keyword}\\s*[:\\-]*\\s*(\\d+))|(?:(\\d+)\\s*[:\\-]*\\s*${keyword}\\b)`, 'i');
+                        const match = text.match(regex);
+                        if (match) return match[1] || match[2];
+                        return null;
+                    };
+
+                    const pMatch = getCount('present', lowerText);
+                    const aMatch = getCount('absent', lowerText);
+                    const mMatch = getCount('male', lowerText);
+                    const fMatch = getCount('female', lowerText);
 
                     if (pMatch || aMatch || mMatch || fMatch) {
                         const attendance = {};
-                        if (pMatch) attendance.present = parseInt(pMatch[1]);
-                        if (aMatch) attendance.absent = parseInt(aMatch[1]);
-                        if (mMatch) attendance.male = parseInt(mMatch[1]);
-                        if (fMatch) attendance.female = parseInt(fMatch[1]);
+                        if (pMatch) attendance.present = parseInt(pMatch);
+                        if (aMatch) attendance.absent = parseInt(aMatch);
+                        if (mMatch) attendance.male = parseInt(mMatch);
+                        if (fMatch) attendance.female = parseInt(fMatch);
 
                         // 2. Get Batch ID from Group Title
                         let groupTitle = '';
