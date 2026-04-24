@@ -676,7 +676,13 @@ async function processMessage(m, sock) {
             
             let sentCount = 0;
             for (const item of todaysGroups) {
-                const targetGroup = groupsArray.find((g) => g.subject === item.groupName);
+                // Smarter matching: look for a group that contains the Batch ID
+                const targetGroup = groupsArray.find((g) => {
+                    const sub = g.subject.toLowerCase();
+                    const bId = item.batchId.toString().toLowerCase();
+                    return sub.includes(bId);
+                });
+                
                 if (targetGroup) {
                     await sock.sendMessage(targetGroup.id, {
                         text: `📢 *Attendance Reminder!* 📊\n\nPllease update the today's batch attendance (Present, Absent, Male, Female) in this group to maintain the records.\n\n*Format:* \nPresent - 20\nAbsent - 5\nMale - 15\nFemale - 5`
