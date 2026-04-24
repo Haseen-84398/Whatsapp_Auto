@@ -1,7 +1,7 @@
 const https = require('https');
 const http = require('http');
 
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxP0C61hre6huVbtrx14gsi-rtRV8JqZtO3iLcz-hXlVNhT5snqQMO9PYxYrnIXpRTf/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxr1eHyqRNiBVH83ioZPA1M1VWOniZPE9Q0eUMlGrCeriP4snpURXpWHJ88c7viZWic/exec';
 const SHEET_NAME = 'Assessment Tracker';
 
 function makeRequest(url, method = 'GET', data = null, maxRedirects = 5) {
@@ -29,7 +29,8 @@ function makeRequest(url, method = 'GET', data = null, maxRedirects = 5) {
                 const redirectUrl = res.headers.location;
                 // Consume response to free up socket
                 res.resume();
-                return makeRequest(redirectUrl, method, data, maxRedirects - 1).then(resolve).catch(reject);
+                // Google Apps Script redirects POST to a GET url. Send GET without data.
+                return makeRequest(redirectUrl, 'GET', null, maxRedirects - 1).then(resolve).catch(reject);
             }
 
             let body = '';
@@ -94,6 +95,22 @@ function indexToColumnLetter(colIndex) {
     return letter;
 }
 
+function formatDate(dateStr) {
+    if (!dateStr) return 'NoDate';
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr.toString().replace(/[/\\?%*:|"<>]/g, '-');
+    
+    const day = d.getDate().toString().padStart(2, '0');
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const month = months[d.getMonth()];
+    return `${day}-${month}`;
+}
+
+function constructGroupName(batchId, sscShort, startDate, day) {
+    const cleanDate = formatDate(startDate);
+    return `${batchId}_${sscShort}_${cleanDate}_${day}`;
+}
+
 async function fetchPendingGroups() {
     const rows = await fetchSheetData();
     if (!rows || rows.length < 2) return [];
@@ -125,7 +142,7 @@ async function fetchPendingGroups() {
 
         if (batchId && sector && status === 'pending') {
             const sscShort = mapSectorToSSC(sector);
-            const groupName = `${batchId}_${sscShort}_${startDate}_${day}`;
+            const groupName = constructGroupName(batchId, sscShort, startDate, day);
 
             pendingGroups.push({
                 rowIndex: i + 1,
@@ -183,7 +200,7 @@ async function fetchGroupsNeedingAttendance() {
 
         if (status === 'created' && (!presentCount || presentCount === '0' || presentCount === '')) {
             const sscShort = mapSectorToSSC(sector);
-            const groupName = `${batchId}_${sscShort}_${startDate}_${day}`;
+            const groupName = constructGroupName(batchId, sscShort, startDate, day);
             needingReminder.push({ batchId, groupName });
         }
     }
@@ -242,5 +259,6 @@ module.exports = {
     lockGroupAsCreating,
     markGroupAsCreated,
     unlockGroupAsPending,
-    updateSheetAttendance
+    updateSheetAttendance,
+    fetchSheetData
 };

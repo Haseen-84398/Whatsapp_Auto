@@ -14,6 +14,7 @@ const qrcode = require('qrcode-terminal');
 const { Boom } = require('@hapi/boom');
 const mime = require('mime-types');
 const https = require('https');
+const { exec } = require('child_process');
 // const { GoogleGenerativeAI } = require('@google/generative-ai'); // Removed Gemini
 const {
     fetchPendingGroups,
@@ -630,7 +631,19 @@ async function sendGroupGuidelines(jid, groupName, sock) {
 }
 
 async function processMessage(m, sock) {
-    if (!m.message || m.key.fromMe) return;
+    if (!m.message) return;
+
+    // Default skip own messages UNLESS it's an attendance update or a command
+    // This allows the user to type attendance manually on the same phone.
+    const tempText = m.message.conversation || m.message.extendedTextMessage?.text || "";
+    
+    // Check if this is a bot-generated message (to prevent infinite loops)
+    const isBotMessage = tempText.includes('Attendance Logged') || tempText.includes('Total Scheduled');
+    
+    const isAttendance = !isBotMessage && /\b(present|absent|male|female)\b/i.test(tempText) && /\d+/.test(tempText);
+    const isCommand = tempText.startsWith('!');
+    
+    if (m.key.fromMe && !isAttendance && !isCommand) return;
 
     let msgType = Object.keys(m.message)[0];
     const jid = m.key.remoteJid;
@@ -778,6 +791,61 @@ async function processMessage(m, sock) {
         } catch (err) {
             console.error('Error creating group:', err);
             await sock.sendMessage(jid, { text: `❌ Group nahi ban paya: ${err.message}` });
+            return;
+        }
+    }
+
+    // --- COMMAND: Mark Batch as Completed ---
+    if (textMessage && textMessage.toLowerCase().startsWith('!completed')) {
+        const jid = m.key.remoteJid;
+        try {
+            // Get Group Title
+            let groupTitle = '';
+            if (groupCache.has(jid)) {
+                groupTitle = groupCache.get(jid);
+            } else {
+                const metadata = await sock.groupMetadata(jid);
+                groupTitle = metadata.subject;
+                groupCache.set(jid, groupTitle);
+            }
+
+            const batchId = groupTitle.split('_')[0].trim();
+            if (!batchId || batchId.length < 3) {
+                await sock.sendMessage(jid, { text: '❌ Is group ke title se Batch ID nahi mila.' });
+                return;
+            }
+
+            // Sheet update logic removed as requested by user
+
+            // Get final summary from tracker
+            const tracker = getAttendanceTracker();
+            const batchData = tracker[batchId] || {};
+            const sumAttendance = { present: 0, absent: 0, male: 0, female: 0 };
+            
+            for (const gJid in batchData) {
+                const data = batchData[gJid];
+                sumAttendance.present += (data.present || 0);
+                sumAttendance.absent += (data.absent || 0);
+                sumAttendance.male += (data.male || 0);
+                sumAttendance.female += (data.female || 0);
+            }
+
+            await sock.sendMessage(jid, {
+                text: `✅ *Batch Completed!* 🏁\n\n` +
+                      `🆔 Batch ID: ${batchId}\n` +
+                      `📊 *Final Attendance Summary:*\n` +
+                      `✅ Total Present: ${sumAttendance.present}\n` +
+                      `❌ Total Absent: ${sumAttendance.absent}\n` +
+                      `👨 Total Male: ${sumAttendance.male}\n` +
+                      `👩 Total Female: ${sumAttendance.female}\n\n` +
+                      `📌 Is batch ka final attendance record save ho gaya hai.`
+            });
+
+            console.log(`🏁 Batch ${batchId} marked as Completed.`);
+            return;
+        } catch (err) {
+            console.error('Error completing batch:', err);
+            await sock.sendMessage(jid, { text: `❌ Error: ${err.message}` });
             return;
         }
     }
@@ -1299,6 +1367,9 @@ async function processMessage(m, sock) {
                             groupCache.set(jid, groupTitle);
                         }
 
+                        console.log(`📊 [Debug] Extracted Attendance:`, attendance);
+                        console.log(`📊 [Debug] Group Title: ${groupTitle}`);
+
                         const batchId = groupTitle.split('_')[0].trim();
 
                         if (batchId && batchId.length >= 3) {
@@ -1334,7 +1405,7 @@ async function processMessage(m, sock) {
                                         `✅ *Attendance Logged & Added!* 📊\n\n` +
                                         `🆔 Batch ID: ${batchId}\n` +
                                         `👥 Total Scheduled: ${result.total}\n` +
-                                        `✅ Total Present: ${result.present} *(Includes all days)*\n` +
+                                        `✅ Total Present: ${result.present}\n` +
                                         `❌ Total Absent: ${result.absent}\n` +
                                         `👨 Total Male: ${result.male}\n` +
                                         `👩 Total Female: ${result.female}\n\n` +
@@ -1458,12 +1529,13 @@ async function processMessage(m, sock) {
                 // === AI AUTO-REPLY (Groq) ===
                 // Reply to both private chats and group messages
                 // BUT skip: admin messages, bot commands (!), attendance data, and mode replies
-                const senderJid = m.key.participant || jid; // group mein participant, private mein jid
+                const senderJid = m.key.participant || jid;
+                const isGroup = jid.endsWith('@g.us');
                 const isCommand = textMessage.startsWith('!');
                 const isAttendanceData = /\b(present|absent)\b/.test(textMessage.toLowerCase()) && /\d+/.test(textMessage);
                 const isModeReply = pendingRenames && pendingRenames.has(m.message?.extendedTextMessage?.contextInfo?.stanzaId);
 
-                if (!isCommand && !isAttendanceData && !isModeReply && !isBotAdmin(senderJid)) {
+                if (!isGroup && !isCommand && !isAttendanceData && !isModeReply && !isBotAdmin(senderJid)) {
                     try {
                         console.log(`🤖 [AI] Processing query from ${senderJid}: "${textMessage}"`);
                         const aiReply = await callAI(textMessage);
