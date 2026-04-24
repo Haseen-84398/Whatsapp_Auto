@@ -210,6 +210,34 @@ async function fetchGroupsNeedingAttendance() {
     return needingReminder;
 }
 
+async function fetchBatchAttendance(batchId) {
+    const rows = await fetchSheetData();
+    if (!rows || rows.length < 2) return null;
+
+    const headers = rows[0].map((h) => (h ? h.toString().trim().toLowerCase() : ''));
+    const idxBatchId = headers.findIndex((h) => h.includes('batch id'));
+    const idxPresent = headers.findIndex((h) => h === 'present' || h.startsWith('present'));
+    const idxAbsent = headers.findIndex((h) => h === 'absent' || h.startsWith('absent'));
+    const idxMale = headers.findIndex((h) => h.includes('male'));
+    const idxFemale = headers.findIndex((h) => h.includes('female'));
+
+    if (idxBatchId === -1 || idxPresent === -1) return null;
+
+    for (let i = 1; i < rows.length; i++) {
+        const rowVal = rows[i][idxBatchId];
+        if (rowVal && rowVal.toString().trim() === batchId.toString().trim()) {
+            return {
+                present: parseInt(rows[i][idxPresent] || '0'),
+                absent: parseInt(rows[i][idxAbsent] || '0'),
+                male: idxMale !== -1 ? parseInt(rows[i][idxMale] || '0') : 0,
+                female: idxFemale !== -1 ? parseInt(rows[i][idxFemale] || '0') : 0
+            };
+        }
+    }
+    return null;
+}
+
+
 async function updateSheetAttendance(batchId, attendance) {
     const rows = await fetchSheetData();
     if (!rows || rows.length < 2) throw new Error('Sheet data nahi mila.');
@@ -291,6 +319,7 @@ async function updateSheetAttendance(batchId, attendance) {
 module.exports = {
     fetchPendingGroups,
     fetchGroupsNeedingAttendance,
+    fetchBatchAttendance,
     lockGroupAsCreating,
     markGroupAsCreated,
     unlockGroupAsPending,

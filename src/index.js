@@ -19,6 +19,7 @@ const { exec } = require('child_process');
 const {
     fetchPendingGroups,
     fetchGroupsNeedingAttendance,
+    fetchBatchAttendance,
     lockGroupAsCreating,
     markGroupAsCreated,
     unlockGroupAsPending,
@@ -817,22 +818,28 @@ async function processMessage(m, sock) {
 
             // Sheet update logic removed as requested by user
 
-            // Get final summary from tracker
-            const tracker = getAttendanceTracker();
-            const batchData = tracker[batchId] || {};
-            const sumAttendance = { present: 0, absent: 0, male: 0, female: 0 };
+            // Fetch current attendance from the sheet
+            const sheetAttendance = await fetchBatchAttendance(batchId);
 
-            for (const gJid in batchData) {
-                const data = batchData[gJid];
-                sumAttendance.present += data.present || 0;
-                sumAttendance.absent += data.absent || 0;
-                sumAttendance.male += data.male || 0;
-                sumAttendance.female += data.female || 0;
+            if (sheetAttendance && sheetAttendance.present > 0) {
+                // Attendance is already logged, show the summary
+                await sock.sendMessage(jid, {
+                    text:
+                        `✅ *Batch Completed!* 🏁\n\n` +
+                        `🆔 Batch ID: ${batchId}\n` +
+                        `📊 *Final Attendance Summary:*\n` +
+                        `✅ Total Present: ${sheetAttendance.present}\n` +
+                        `❌ Total Absent: ${sheetAttendance.absent}\n` +
+                        `👨 Total Male: ${sheetAttendance.male}\n` +
+                        `👩 Total Female: ${sheetAttendance.female}\n\n` +
+                        `📌 Is batch ka final attendance record save ho gaya hai.`
+                });
+            } else {
+                // Attendance is not logged, ask for it
+                await sock.sendMessage(jid, {
+                    text: 'Please Share attendance \nPresent : \nAbsent : \nMale : \nFemale :'
+                });
             }
-
-            await sock.sendMessage(jid, {
-                text: 'Please Share attendance \nPresent : \nAbsent : \nMale : \nFemale :'
-            });
 
             console.log(`🏁 Batch ${batchId} marked as Completed.`);
             return;
