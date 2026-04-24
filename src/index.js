@@ -694,7 +694,7 @@ async function processMessage(m, sock) {
                 
                 if (targetGroup) {
                     await sock.sendMessage(targetGroup.id, {
-                        text: `📢 *Attendance Reminder!* 📊\n\nPllease update the today's batch attendance (Present, Absent, Male, Female) in this group to maintain the records.\n\n*Format:* \nPresent - 20\nAbsent - 5\nMale - 15\nFemale - 5`
+                        text: `📢 *Attendance Reminder!* 📊\n\nPllease update the today's batch attendance (Present, Absent, Male, Female) in this group to maintain the records.\n\n*Format:* \nPresent : \nAbsent : \nMale : \nFemale : `
                     });
                     sentCount++;
                     await new Promise(r => setTimeout(r, 2000));
@@ -1985,7 +1985,7 @@ async function startAutomation() {
                                 const targetGroup = groupsArray.find((g) => g.subject === item.groupName);
                                 if (targetGroup) {
                                     await sock.sendMessage(targetGroup.id, {
-                                        text: `📢 *Attendance Reminder!* 📊\n\nPllease update the today's batch attendance (Present, Absent, Male, Female) in this group to maintain the records.\n\n*Format:* \nPresent - 20\nAbsent - 5\nMale - 15\nFemale - 5`
+                                        text: `📢 *Attendance Reminder!* 📊\n\nPllease update the today's batch attendance (Present, Absent, Male, Female) in this group to maintain the records.\n\n*Format:* \nPresent : \nAbsent : \nMale : \nFemale : `
                                     });
                                     console.log(`✅ [Reminder] Sent to: ${item.groupName}`);
                                     await new Promise((r) => setTimeout(r, 2000)); // Rate limiting
