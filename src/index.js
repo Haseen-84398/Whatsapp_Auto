@@ -1402,17 +1402,25 @@ async function processMessage(m, sock) {
 
     // --- COMMAND: COMPLETE EXIT (Step 1) ---
     if (textMessage && (lowerText === 'complete exit' || lowerText === '!complete exit')) {
-        const adminNumbers = ['918006685100', '918006133100', '918448758878'];
-        const sender = m.key.participant || jid;
-        const isAdmin = adminNumbers.some(num => sender.includes(num));
-        
-        if (!isAdmin) {
-            console.log(`⚠️ Unauthorized exit attempt by ${m.key.participant || jid}`);
-            return;
+        const jid = m.key.remoteJid;
+        if (!jid.endsWith('@g.us')) return;
+
+        try {
+            const groupMetadata = await sock.groupMetadata(jid);
+            const senderId = m.key.participant || jid;
+            const participant = groupMetadata.participants.find(p => p.id === senderId);
+            const isGroupAdmin = participant && (participant.admin === 'admin' || participant.admin === 'superadmin');
+            
+            if (!isGroupAdmin) {
+                console.log(`⚠️ Unauthorized exit attempt by ${senderId}`);
+                return;
+            }
+            await sock.sendMessage(jid, {
+                text: `⚠️ *WARNING!* Aapne 'complete exit' likha hai.\nIska matlab hai ki Bot is group ke sabhi logo ko nikal dega aur khud bhi group leave kar dega.\n\nAgar aap sure hain, toh confirm karne ke liye exactly ye type karein:\n\n*confirm exit*`
+            });
+        } catch (err) {
+            console.error('Error in complete exit command:', err);
         }
-        await sock.sendMessage(jid, {
-            text: `⚠️ *WARNING!* Aapne 'complete exit' likha hai.\nIska matlab hai ki Bot is group ke sabhi logo ko nikal dega aur khud bhi group leave kar dega.\n\nAgar aap sure hain, toh confirm karne ke liye exactly ye type karein:\n\n*confirm exit*`
-        });
         return;
     }
 
@@ -1422,6 +1430,16 @@ async function processMessage(m, sock) {
         if (!jid.endsWith('@g.us')) return;
 
         try {
+            const groupMetadata = await sock.groupMetadata(jid);
+            const senderId = m.key.participant || jid;
+            const participant = groupMetadata.participants.find(p => p.id === senderId);
+            const isGroupAdmin = participant && (participant.admin === 'admin' || participant.admin === 'superadmin');
+            
+            if (!isGroupAdmin) {
+                console.log(`⚠️ Unauthorized confirm exit attempt by ${senderId}`);
+                return;
+            }
+
             await sock.sendMessage(jid, { text: `🚨 Deleting group... Removing all members...` });
 
             const groupMetadata = await sock.groupMetadata(jid);
