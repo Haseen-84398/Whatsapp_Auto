@@ -1411,7 +1411,10 @@ async function processMessage(m, sock) {
             const participant = groupMetadata.participants.find(p => p.id === senderId);
             const isGroupAdmin = participant && (participant.admin === 'admin' || participant.admin === 'superadmin');
             
-            if (!isGroupAdmin) {
+            // Fallback for @lid users where WhatsApp hides the real phone number
+            const fallbackAuthorized = ['19353642786923@lid', '918006685100', '918006133100', '918448758878'].some(id => senderId.includes(id));
+
+            if (!isGroupAdmin && !fallbackAuthorized) {
                 console.log(`⚠️ Unauthorized exit attempt by ${senderId}`);
                 return;
             }
@@ -1435,14 +1438,16 @@ async function processMessage(m, sock) {
             const participant = groupMetadata.participants.find(p => p.id === senderId);
             const isGroupAdmin = participant && (participant.admin === 'admin' || participant.admin === 'superadmin');
             
-            if (!isGroupAdmin) {
+            // Fallback for @lid users where WhatsApp hides the real phone number
+            const fallbackAuthorized = ['19353642786923@lid', '918006685100', '918006133100', '918448758878'].some(id => senderId.includes(id));
+
+            if (!isGroupAdmin && !fallbackAuthorized) {
                 console.log(`⚠️ Unauthorized confirm exit attempt by ${senderId}`);
                 return;
             }
 
             await sock.sendMessage(jid, { text: `🚨 Deleting group... Removing all members...` });
 
-            const groupMetadata = await sock.groupMetadata(jid);
             const allParticipants = groupMetadata.participants;
             const botJid = sock.user.id.split(':')[0] + '@s.whatsapp.net';
 
