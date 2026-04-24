@@ -556,8 +556,12 @@ Noida, Uttar Pradesh – 201303
 // Removed duplicate getGuidelinesForTitle and sendGuidelines functions.
 
 // --- REUSABLE FUNCTION: Send Guidelines & Documents ---
-async function sendGroupGuidelines(jid, groupName, sock) {
+async function sendGroupGuidelines(jid, groupData, sock) {
     try {
+        const groupName = typeof groupData === 'string' ? groupData : groupData.groupName;
+        const language = typeof groupData === 'object' ? (groupData.language || '') : '';
+        const jobRole = typeof groupData === 'object' ? (groupData.jobRole || '') : '';
+
         let selectedConfig = BATCH_GUIDELINES['default'];
         const upperTitle = (groupName || '').toUpperCase();
 
@@ -576,22 +580,123 @@ async function sendGroupGuidelines(jid, groupName, sock) {
 
         // PM-Vishwakarma Special Case
         if (
-            (upperTitle.includes('HCSSC') || upperTitle.includes('GJSCI')) &&
+            (upperTitle.includes('HCSSC') || upperTitle.includes('GJSCI') || upperTitle.includes('CSDCI')) &&
             (upperTitle.includes('DAY 0') || upperTitle.includes('DAY 6'))
         ) {
-            selectedConfig = BATCH_GUIDELINES['PM_VISHWAKARMA'];
+            selectedConfig = Object.assign({}, BATCH_GUIDELINES['PM_VISHWAKARMA']); // Clone to allow dynamic changes
+            
+            // Apply CSDCI specific PM Vishwakarma Day 0 guidelines
+            if (upperTitle.includes('CSDCI') && upperTitle.includes('DAY 0')) {
+                selectedConfig.text = `Important Instructions
+
+Please share geotag photos & videos of today assessment in this group -
+1. Assessor In time Photo 
+2. Centre Premises and Tool - Equipment Photos minimum 5 photos and centre photos minimum 2
+3. Assessor Filled Invoice 
+4. Aadhar Holding Photos with clear aadhar visible details 
+5. Theory Photos & Videos (where all candidates will capture during giving theory - video length should be of 2 min) From Front view
+6. Orientation Photos videos ( where capture all candidates and video length should be of 2 min )   From Front view
+7. Group Photos of all candidates with Assessor ( if candidate count is huge then divide them in groups ) All candidate faces must be clear
+8. Filled Attendance sheet 
+9. Filled Tool list 
+10. Checked scan a copy of the attempted question paper for each candidates.  It is mandatory for the assessor to evaluate the paper.
+11. Assessor Out Time photo
+12. Documents need to be courier are below mentioned
+1. Original Assessor filled invoice 
+2. Original Attendance sheet 
+3. Original Scan copy of theory papers
+4. Filled tool list Document 
+ 
+Pls courier hard copy of documents to the below mentioned address 
+
+Priya
+Cee Vision Technologies Pvt. Ltd.
+A-173, sector 43,
+Noida, Uttar Pradesh – 201303
+Mb. 84487 58878
+
+Also share courier receipt in this group.`;
+                selectedConfig.folder = null; // We will handle files dynamically
+            }
         }
 
         // 2. Send Guidelines Text
         if (selectedConfig.text) {
-            const footer = typeof COMPANY_ADDRESS_APPENDIX !== 'undefined' ? COMPANY_ADDRESS_APPENDIX : '';
-            await sock.sendMessage(jid, { text: selectedConfig.text + footer });
-            console.log(`📜 Guidelines sent to: ${jid} (${groupName})`);
+            try {
+                const footer = typeof COMPANY_ADDRESS_APPENDIX !== 'undefined' ? COMPANY_ADDRESS_APPENDIX : '';
+                await sock.sendMessage(jid, { text: selectedConfig.text + footer });
+                console.log(`✅ [Guidelines] Text sent to: ${jid}`);
+                await new Promise((r) => setTimeout(r, 2000));
+            } catch (txtErr) {
+                console.error(`❌ [Guidelines] Text failed for ${jid}:`, txtErr.message);
+            }
         }
 
         // 3. Collect Documents
         let docsToSend = [];
-        if (selectedConfig.folder) {
+        
+        // Custom File Logic for PM Vishwakarma CSDCI Day 0
+        if (upperTitle.includes('CSDCI') && upperTitle.includes('DAY 0') && upperTitle.includes('PM')) {
+            // Because PM is not explicitly in the title (it's PM Vishwakarma but title usually has Batch ID), we just use CSDCI + DAY 0 based on user request
+        }
+        if (selectedConfig.text && selectedConfig.text.includes('Assessor Filled Invoice') && upperTitle.includes('CSDCI') && upperTitle.includes('DAY 0')) {
+            const baseFolder = path.join(process.cwd(), 'ssc_documents', 'PM-Vishwakarma', 'CSDCI', 'Day 0');
+            
+            // 1. Invoice
+            const invoiceFile = path.join(baseFolder, 'Invoice.pdf');
+            if (fs.existsSync(invoiceFile)) docsToSend.push({ file: invoiceFile, displayName: 'Invoice.pdf', isAbsolutePath: true });
+
+            // Extract Job Role Code (e.g. 'CON/N0160' from 'Brick Mason CON/N0160')
+            // Pattern looks for letters followed by optional slash/hyphen and numbers/letters (e.g., CONN0160, CON/N0160)
+            const jobRoleCodeMatch = jobRole.match(/([A-Z]{2,}\s*[\/\-_]?\s*[A-Z]?[0-9]{3,})/i);
+            const jobRoleCode = jobRoleCodeMatch 
+                ? jobRoleCodeMatch[1].replace(/[^a-zA-Z0-9]/g, '') 
+                : jobRole.replace(/[^a-zA-Z0-9]/g, ''); // Fallback to stripped full text
+            
+            // 2. Question Paper & Tool List folders
+            if (fs.existsSync(baseFolder)) {
+                const subfolders = fs.readdirSync(baseFolder).filter(f => fs.statSync(path.join(baseFolder, f)).isDirectory());
+                
+                // 2a. Tool List (In 'Tool List' subfolder)
+                const toolListFolderPath = path.join(baseFolder, 'Tool List');
+                if (fs.existsSync(toolListFolderPath)) {
+                    const toolFiles = fs.readdirSync(toolListFolderPath);
+                    const numbersOnly = jobRoleCode.replace(/\D/g, ''); // e.g. '0160'
+                    
+                    const toolListFile = toolFiles.find(f => {
+                        const cleanFile = f.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+                        return cleanFile.includes(jobRoleCode.toLowerCase()) || (numbersOnly && cleanFile.includes(numbersOnly));
+                    });
+
+                    if (toolListFile) {
+                        docsToSend.push({ file: path.join(toolListFolderPath, toolListFile), displayName: toolListFile, isAbsolutePath: true });
+                    }
+                }
+
+                // 2b. Question Paper (In Job Role specific folder)
+                const matchingFolder = subfolders.find(f => {
+                    const cleanFolder = f.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+                    return cleanFolder.includes(jobRoleCode.toLowerCase()) || (jobRoleCode.replace(/\D/g, '') && cleanFolder.includes(jobRoleCode.replace(/\D/g, '')));
+                });
+                
+                if (matchingFolder && matchingFolder !== 'Tool List') {
+                    const jobRolePath = path.join(baseFolder, matchingFolder);
+                    const files = fs.readdirSync(jobRolePath);
+                    
+                    // Match Language for Question Paper
+                    const targetLang = language.toLowerCase();
+                    const matchingLangFile = files.find(f => f.toLowerCase().includes(targetLang));
+                    
+                    if (matchingLangFile) {
+                        docsToSend.push({ file: path.join(jobRolePath, matchingLangFile), displayName: matchingLangFile, isAbsolutePath: true });
+                    } else if (files.length > 0) {
+                        // Fallback to English/Hindi
+                        const fallbackFile = files.find(f => f.toLowerCase().includes('english') || f.toLowerCase().includes('hindi')) || files[0];
+                        docsToSend.push({ file: path.join(jobRolePath, fallbackFile), displayName: fallbackFile, isAbsolutePath: true });
+                    }
+                }
+            }
+        } else if (selectedConfig.folder) {
             const folderPath = path.join(process.cwd(), 'ssc_documents', selectedConfig.folder);
             if (fs.existsSync(folderPath)) {
                 const files = fs.readdirSync(folderPath).filter((f) => {
@@ -618,12 +723,19 @@ async function sendGroupGuidelines(jid, groupName, sock) {
                 : path.join(process.cwd(), 'ssc_documents', selectedConfig.folder || '', docObj.file);
 
             if (fs.existsSync(docPath)) {
-                await sock.sendMessage(jid, {
-                    document: fs.readFileSync(docPath),
-                    mimetype: 'application/pdf',
-                    fileName: docObj.displayName || path.basename(docPath)
-                });
-                await new Promise((r) => setTimeout(r, 1000)); // Delay between docs
+                try {
+                    await sock.sendMessage(jid, {
+                        document: fs.readFileSync(docPath),
+                        mimetype: 'application/pdf',
+                        fileName: docObj.displayName || path.basename(docPath)
+                    });
+                    console.log(`✅ [Guidelines] Doc sent: ${path.basename(docPath)}`);
+                    await new Promise((r) => setTimeout(r, 2000)); // Delay between docs
+                } catch (docErr) {
+                    console.error(`❌ [Guidelines] Doc failed (${path.basename(docPath)}):`, docErr.message);
+                }
+            } else {
+                console.warn(`⚠️ [Guidelines] Doc not found: ${docPath}`);
             }
         }
     } catch (err) {
@@ -1289,7 +1401,7 @@ async function processMessage(m, sock) {
     }
 
     // --- COMMAND: COMPLETE EXIT (Step 1) ---
-    if (textMessage && lowerText === 'complete exit') {
+    if (textMessage && (lowerText === 'complete exit' || lowerText === '!complete exit')) {
         const isAdmin = [
             '918006685100@s.whatsapp.net',
             '918006133100@s.whatsapp.net',
@@ -1306,7 +1418,7 @@ async function processMessage(m, sock) {
     }
 
     // --- COMMAND: CONFIRM EXIT (Step 2 - Destructive) ---
-    if (textMessage && lowerText === 'confirm exit') {
+    if (textMessage && (lowerText === 'confirm exit' || lowerText === '!confirm exit')) {
         const jid = m.key.remoteJid;
         if (!jid.endsWith('@g.us')) return;
 
@@ -1912,6 +2024,10 @@ async function startAutomation() {
                             // STEP 3: Success — "Created" mark karo
                             await markGroupAsCreated(group.rowIndex, group.statusColLetter);
 
+                            // Add a small delay for WhatsApp server synchronization
+                            console.log('⏳ Waiting 5 seconds for group sync...');
+                            await new Promise((r) => setTimeout(r, 5000));
+
                             // --- ADMIN PROMOTION LOGIC (Auto-Sync) ---
                             let targetAdmins = ['918006685100@s.whatsapp.net', '918264742679@s.whatsapp.net'];
                             if (!upperTitle.includes('CSDCI')) {
@@ -1938,7 +2054,7 @@ async function startAutomation() {
 
                             // STEP 4: Auto-Send Guidelines and Documents
                             console.log(`📤 [Auto-Sync] Sending Guidelines & Docs for: ${group.groupName}`);
-                            await sendGroupGuidelines(groupInfo.id, group.groupName, sock);
+                            await sendGroupGuidelines(groupInfo.id, group, sock);
                         } catch (err) {
                             // STEP 4: Fail — unlock back to Pending
                             console.error(`❌ [Auto-Sync] Failed: ${group.groupName}:`, err.message);
